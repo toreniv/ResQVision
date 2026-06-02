@@ -254,7 +254,7 @@ __global__ void row_softmax_kernel(float* scores, int N) {
     int row = blockIdx.x;
     int tid = threadIdx.x;
 
-    float local_max = std::numeric_limits<float>::lowest();
+    float local_max = -FLT_MAX;
     for (int col = tid; col < N; col += blockDim.x) {
         local_max = fmaxf(local_max, scores[row * N + col]);
     }
