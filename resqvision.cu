@@ -1,5 +1,5 @@
 #include <cuda_runtime.h>
-
+#include <cfloat>
 #include <algorithm>
 #include <chrono>
 #include <cmath>
