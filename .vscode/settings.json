@@ -4,5 +4,9 @@
     "*.cuh": "cpp"
   },
   "C_Cpp.errorSquiggles": "disabled",
-  "C_Cpp.intelliSenseEngine": "Tag Parser"
+  "C_Cpp.intelliSenseEngine": "Tag Parser",
+  "python.analysis.diagnosticMode": "openFilesOnly",
+  "python.analysis.ignore": [
+    "**/ResQVision_Colab_Workflow*.ipynb"
+  ]
 }
