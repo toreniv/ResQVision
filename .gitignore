@@ -14,7 +14,7 @@ attention_heatmap.csv
 
 # Python
 
-**pycache**/
+__pycache__/
 *.pyc
 
 # Jupyter

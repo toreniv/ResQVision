@@ -8,5 +8,9 @@
   "python.analysis.diagnosticMode": "openFilesOnly",
   "python.analysis.ignore": [
     "**/ResQVision_Colab_Workflow*.ipynb"
-  ]
+  ],
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingImports": "none",
+    "reportMissingModuleSource": "none"
+  }
 }

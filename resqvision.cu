@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <limits>
 #include <numeric>
 #include <random>
 #include <sstream>
@@ -253,7 +254,7 @@ __global__ void row_softmax_kernel(float* scores, int N) {
     int row = blockIdx.x;
     int tid = threadIdx.x;
 
-    float local_max = -CUDART_INF_F;
+    float local_max = std::numeric_limits<float>::lowest();
     for (int col = tid; col < N; col += blockDim.x) {
         local_max = fmaxf(local_max, scores[row * N + col]);
     }
