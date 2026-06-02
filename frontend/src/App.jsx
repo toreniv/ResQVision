@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   BarChart3,
+  Clock,
   Cpu,
   Crosshair,
   MapPinned,
   Network,
+  Plane,
   RadioTower,
   ShieldCheck
 } from 'lucide-react';
@@ -15,11 +17,9 @@ import {
   correctnessMetrics,
   missionBase,
   missionVariant,
-  readinessCards,
   topTargets
 } from './data.js';
 import TacticalMap from './components/TacticalMap.jsx';
-import MetricCard from './components/MetricCard.jsx';
 import {
   Bar,
   BarChart,
@@ -39,7 +39,7 @@ const navItems = [
 
 function Shell({ activePage, setActivePage, children }) {
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${activePage === 'mission' ? 'mission-active' : ''} ${activePage === 'command' ? 'command-active' : ''}`}>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">R</div>
@@ -81,115 +81,239 @@ function PageHeader({ eyebrow, title, description }) {
 
 function MissionPlan() {
   const [variant, setVariant] = useState(false);
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const mission = variant ? missionVariant : missionBase;
+  const criticalCount = topTargets.filter((target) => target.category === 'critical').length;
+  const urgentCount = topTargets.filter((target) => target.category === 'urgent').length;
+  const stableCount = Math.max(0, mission.soldierCount - criticalCount - urgentCount);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const utcTime = currentTime.toLocaleTimeString('en-US', {
+    hour12: false,
+    timeZone: 'UTC'
+  });
+  const utcDate = currentTime.toLocaleDateString('en-US', {
+    day: '2-digit',
+    month: 'short',
+    timeZone: 'UTC',
+    year: 'numeric'
+  });
 
   return (
-    <section>
-      <PageHeader
-        eyebrow="Pre-mission planning"
-        title="Mission Plan"
-        description="Configure battlefield medical coverage before the ResQVision CUDA attention engine begins live risk ranking."
-      />
-
-      <div className="mission-toolbar">
-        <div>
-          <h2>{mission.name}</h2>
-          <p>{mission.area}</p>
-        </div>
-        <button className="primary-button" onClick={() => setVariant((current) => !current)}>
-          Generate Mission Scenario
-        </button>
-      </div>
-
-      <div className="metric-grid">
-        <MetricCard label="Mission Date" value={mission.date} />
-        <MetricCard label="Soldiers" value={mission.soldierCount.toLocaleString()} />
-        <MetricCard label="Active ResQBands" value={mission.resqBandCount} tone="green" />
-        <MetricCard label="Medical Teams" value={mission.medicalTeams} />
-        <MetricCard label="UAV Available" value={mission.uavAvailable ? 'Online' : 'Offline'} tone="green" />
-        <MetricCard label="LoRa Relays" value={mission.loraRelays} />
-        <MetricCard label="EVAC Zones" value={mission.evacuationZones} tone="orange" />
-        <MetricCard label="Readiness Score" value={`${mission.readinessScore}%`} tone="green" />
-      </div>
-
-      <div className="content-grid two-columns">
-        <section className="panel map-panel">
-          <div className="panel-title">
-            <h3>Planning Map</h3>
-            <span>1000 x 1000 tactical grid</span>
+    <section className="mission-console">
+      <header className="tactical-command-header">
+        <div className="command-brand-card">
+          <div className="command-shield">R</div>
+          <div>
+            <strong>RESQVISION</strong>
+            <span>AI for battlefield medicine</span>
           </div>
-          <TacticalMap planning />
+        </div>
+
+        <div className="command-title">
+          <h1><span>RESQ</span>VISION TACTICAL COMMAND</h1>
+          <p>GPU-Accelerated Battlefield Casualty Prioritization | CUDA Attention Engine</p>
+          <small>Static demo mode - ready for CUDA JSON integration</small>
+        </div>
+
+        <div className="command-header-cards">
+          <article className="header-status-card">
+            <Plane size={38} />
+            <div>
+              <span>UAV-1 Status</span>
+              <strong>Operational</strong>
+            </div>
+            <i className="status-light" />
+          </article>
+          <article className="header-status-card time-card">
+            <Clock size={22} />
+            <div>
+              <span>Time (UTC)</span>
+              <strong>{utcTime}</strong>
+              <small>{utcDate}</small>
+            </div>
+          </article>
+          <article className="header-status-card mission-live-card">
+            <ShieldCheck size={24} />
+            <div>
+              <span>Mission Status</span>
+              <strong>Active</strong>
+            </div>
+          </article>
+        </div>
+      </header>
+
+      <div className="live-command-grid">
+        <section className="command-map-surface">
+          <TacticalMap planning showArrows />
         </section>
-        <section className="readiness-stack">
-          {readinessCards.map((card) => (
-            <article className="panel readiness-card" key={card.title}>
-              <ShieldCheck size={22} />
-              <div>
-                <h3>{card.title}</h3>
-                <strong>{card.value}</strong>
-                <p>{card.detail}</p>
-              </div>
-            </article>
-          ))}
-        </section>
+
+        <aside className="evac-targets-console">
+          <div className="targets-console-title">
+            <Crosshair size={24} />
+            <h2>Top Evacuation Targets</h2>
+          </div>
+          <div className="mission-meta-line">
+            <span>{mission.name}</span>
+            <button onClick={() => setVariant((current) => !current)}>Generate Scenario</button>
+          </div>
+
+          <div className="evac-target-list">
+            {topTargets.map((target) => (
+              <article className={`evac-target-row severity-${target.category}`} key={target.id}>
+                <div className="rank-badge">{target.rank}</div>
+                <div className="evac-target-body">
+                  <div className="target-row-top">
+                    <strong>Soldier ID: {target.id}</strong>
+                    <em>{(target.risk * 100).toFixed(1)}</em>
+                  </div>
+                  <div className="target-vitals">
+                    <span>HR: {target.hr} bpm</span>
+                    <span>SpO2: {target.spo2}%</span>
+                  </div>
+                  <div className="risk-track">
+                    <i style={{ width: `${Math.round(target.risk * 100)}%` }} />
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="console-legend">
+            <span><i className="dot critical" /> Critical</span>
+            <span><i className="dot urgent" /> Urgent</span>
+            <span><i className="dot stable" /> Stable</span>
+            <span><i className="marker-sample uav" /> UAV-1</span>
+          </div>
+        </aside>
       </div>
+
+      <footer className="operation-stat-strip">
+        <div><i className="strip-icon critical-icon" /><span>Critical</span><strong className="critical-text">{criticalCount}</strong></div>
+        <div><i className="strip-icon urgent-icon" /><span>Urgent</span><strong className="urgent-text">{urgentCount}</strong></div>
+        <div><i className="strip-icon stable-icon" /><span>Stable</span><strong className="stable-text">{stableCount}</strong></div>
+        <div><i className="strip-icon uav-icon" /><span>UAV Location</span><strong>(510 m, 130 m)</strong></div>
+        <div><i className="strip-icon cuda-icon" /><span>CUDA Engine</span><strong>Attention PASS</strong></div>
+        <div><i className="strip-icon data-icon" /><span>Data Source</span><strong>ResQBand Telemetry</strong></div>
+        <div><i className="strip-icon mission-icon" /><span>Mission Status</span><strong className="stable-text">Active</strong></div>
+      </footer>
     </section>
   );
 }
 
-function TacticalCommand() {
-  return (
-    <section>
-      <PageHeader
-        eyebrow="Live tactical command"
-        title="Tactical Command"
-        description="Real-time casualty prioritization with UAV routing, ResQBand telemetry, and CUDA-accelerated attention scores."
-      />
+function TacticalCommand({ setActivePage }) {
+  const [currentTime, setCurrentTime] = useState(() => new Date());
+  const criticalCount = topTargets.filter((target) => target.category === 'critical').length;
+  const urgentCount = topTargets.filter((target) => target.category === 'urgent').length;
+  const stableCount = Math.max(0, missionBase.soldierCount - criticalCount - urgentCount);
 
-      <div className="command-layout">
-        <section className="panel map-panel">
-          <div className="panel-title">
-            <h3>Live Battlefield Map</h3>
-            <div className="legend">
-              <span><i className="dot critical" /> Critical</span>
-              <span><i className="dot urgent" /> Urgent</span>
-              <span><i className="dot stable" /> Stable</span>
-            </div>
+  useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const utcTime = currentTime.toLocaleTimeString('en-US', {
+    hour12: false,
+    timeZone: 'UTC'
+  });
+
+  return (
+    <section className="tactical-live-console">
+      <header className="ops-header">
+        <div className="ops-logo">
+          <div className="command-shield">R</div>
+          <div>
+            <strong>RESQVISION</strong>
+            <span>AI for battlefield medicine</span>
           </div>
-          <TacticalMap showArrows />
+        </div>
+
+        <div className="ops-title-block">
+          <h1><span>RESQ</span>VISION TACTICAL COMMAND</h1>
+          <p>GPU-Accelerated Battlefield Casualty Prioritization | CUDA Attention Engine</p>
+          <nav className="ops-top-nav" aria-label="Primary navigation">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                className={item.id === 'command' ? 'active' : ''}
+                onClick={() => setActivePage(item.id)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="ops-status-cluster">
+          <article>
+            <Plane size={28} />
+            <span>UAV-1 Status</span>
+            <strong>Operational</strong>
+          </article>
+          <article>
+            <Clock size={22} />
+            <span>Time (UTC)</span>
+            <strong>{utcTime}</strong>
+          </article>
+          <article>
+            <ShieldCheck size={24} />
+            <span>Mission Status</span>
+            <strong>Active</strong>
+          </article>
+        </div>
+      </header>
+
+      <div className="ops-main-grid">
+        <section className="ops-map-panel">
+          <TacticalMap planning showArrows />
         </section>
 
-        <aside className="panel targets-panel">
-          <div className="engine-card">
-            <Cpu />
-            <div>
-              <span>CUDA Engine</span>
-              <strong>Online</strong>
-            </div>
+        <aside className="live-evac-panel">
+          <div className="live-panel-title">
+            <Crosshair size={22} />
+            <h2>Top Evacuation Targets</h2>
           </div>
-          <div className="status-row">
-            <span>Correctness</span>
-            <strong className="pass">PASS</strong>
+          <div className="live-panel-subtitle">
+            <span>Risk Score</span>
+            <span>Top-10 overlap 10/10</span>
           </div>
-          <div className="status-row">
-            <span>Top-10 overlap</span>
-            <strong>10/10</strong>
-          </div>
-          <h3>Top 10 Evacuation Targets</h3>
-          <div className="target-list">
-            {topTargets.map((target) => (
-              <article key={target.id} className={`target-card ${target.category}`}>
-                <b>#{target.rank}</b>
-                <div>
-                  <strong>{target.id} · {target.name}</strong>
-                  <span>HR {target.hr} bpm · SpO2 {target.spo2}%</span>
+
+          <div className="live-target-list">
+            {topTargets.slice(0, 10).map((target) => (
+              <article className={`live-target-row severity-${target.category}`} key={target.id}>
+                <div className="live-rank">{target.rank}</div>
+                <div className="live-target-content">
+                  <div className="live-target-top">
+                    <strong>Soldier ID: {target.id}</strong>
+                    <em>{(target.risk * 100).toFixed(1)}</em>
+                  </div>
+                  <div className="live-vitals">
+                    <span>HR: {target.hr} bpm</span>
+                    <span>SpO2: {target.spo2}%</span>
+                  </div>
+                  <div className="live-risk-bar">
+                    <i style={{ width: `${Math.round(target.risk * 100)}%` }} />
+                  </div>
                 </div>
-                <em>{Math.round(target.risk * 100)}%</em>
               </article>
             ))}
           </div>
         </aside>
       </div>
+
+      <footer className="live-status-bar">
+        <div><span>Critical</span><strong className="critical-text">{criticalCount}</strong></div>
+        <div><span>Urgent</span><strong className="urgent-text">{urgentCount}</strong></div>
+        <div><span>Stable</span><strong className="stable-text">{stableCount}</strong></div>
+        <div><span>UAV Location</span><strong>(510 m, 130 m)</strong></div>
+        <div><span>CUDA Engine</span><strong>Attention PASS</strong></div>
+        <div><span>Data Source</span><strong>ResQBand Telemetry</strong></div>
+        <div><span>Mission Status</span><strong className="stable-text">Active</strong></div>
+      </footer>
     </section>
   );
 }
@@ -348,7 +472,7 @@ export default function App() {
 
   const page = {
     mission: <MissionPlan />,
-    command: <TacticalCommand />,
+    command: <TacticalCommand setActivePage={setActivePage} />,
     analytics: <Analytics />,
     architecture: <SystemArchitecture />
   }[activePage];

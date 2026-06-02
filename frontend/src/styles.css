@@ -103,6 +103,19 @@ main {
   padding: 26px clamp(18px, 3vw, 38px) 44px;
 }
 
+.app-shell.mission-active {
+  display: block;
+}
+
+.mission-active .sidebar,
+.mission-active .top-strip {
+  display: none;
+}
+
+.mission-active main {
+  padding: 0;
+}
+
 .top-strip {
   display: flex;
   justify-content: space-between;
@@ -115,6 +128,404 @@ main {
   box-shadow: 0 10px 28px rgba(37, 99, 235, 0.08);
   color: var(--muted);
   font-size: 14px;
+}
+
+.mission-console {
+  min-height: 100vh;
+  padding: 14px 16px 12px;
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.05) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(37, 99, 235, 0.05) 1px, transparent 1px),
+    #f7fbff;
+  background-size: 44px 44px;
+}
+
+.tactical-command-header {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr) 530px;
+  gap: 16px;
+  align-items: stretch;
+  min-height: 96px;
+  margin-bottom: 14px;
+}
+
+.command-brand-card,
+.header-status-card,
+.evac-targets-console,
+.operation-stat-strip,
+.command-map-surface {
+  border: 1px solid #cfe0f2;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 28px rgba(15, 40, 71, 0.1);
+}
+
+.command-brand-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 0 8px 8px 0;
+  clip-path: polygon(0 0, 90% 0, 100% 50%, 90% 100%, 0 100%);
+}
+
+.command-shield {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  color: #ffffff;
+  background: linear-gradient(180deg, #2563eb, #0f2747);
+  border-radius: 8px;
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.command-brand-card strong,
+.command-brand-card span {
+  display: block;
+}
+
+.command-brand-card strong {
+  color: var(--blue);
+  letter-spacing: 0.04em;
+}
+
+.command-brand-card span {
+  color: #0f2747;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.command-title {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+}
+
+.command-title h1 {
+  margin: 0;
+  color: #0f2747;
+  font-size: clamp(34px, 4.1vw, 58px);
+  line-height: 0.95;
+  font-weight: 950;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.command-title h1 span {
+  color: #1683ff;
+}
+
+.command-title p {
+  margin: 10px 0 0;
+  color: #24486f;
+  font-size: clamp(16px, 1.5vw, 24px);
+  letter-spacing: 0.01em;
+}
+
+.command-header-cards {
+  display: grid;
+  grid-template-columns: 1.25fr 0.95fr 0.95fr;
+  gap: 0;
+}
+
+.header-status-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border-radius: 8px;
+}
+
+.header-status-card + .header-status-card {
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+}
+
+.header-status-card svg {
+  color: #0f2747;
+}
+
+.header-status-card span,
+.header-status-card strong,
+.header-status-card small {
+  display: block;
+}
+
+.header-status-card span {
+  color: #0f2747;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.header-status-card strong {
+  margin-top: 4px;
+  color: var(--green);
+  font-size: 18px;
+  text-transform: uppercase;
+}
+
+.time-card strong {
+  color: #0f2747;
+  font-size: 26px;
+}
+
+.time-card small {
+  margin-top: 2px;
+  color: #0f2747;
+  font-weight: 700;
+}
+
+.mission-live-card strong {
+  color: var(--green);
+}
+
+.status-light {
+  width: 13px;
+  height: 13px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: #22c55e;
+  box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.12);
+}
+
+.live-command-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 75fr) minmax(330px, 25fr);
+  gap: 16px;
+  height: calc(100vh - 204px);
+  min-height: 620px;
+}
+
+.command-map-surface {
+  position: relative;
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.command-map-surface .tactical-map {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  aspect-ratio: auto;
+  background: #f8fbff;
+}
+
+.command-map-surface .planning-map {
+  min-height: 0;
+  max-height: none;
+}
+
+.evac-targets-console {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 12px;
+  overflow: hidden;
+  padding: 18px;
+  border-radius: 8px 0 0 8px;
+}
+
+.targets-console-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #1683ff;
+}
+
+.targets-console-title h2 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.mission-meta-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  color: #24486f;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mission-meta-line button {
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: var(--blue);
+  background: #eff6ff;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.evac-target-list {
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.evac-target-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid #e2edf8;
+}
+
+.rank-badge {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 5px;
+  color: #ffffff;
+  background: var(--green);
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.severity-critical .rank-badge,
+.severity-critical .risk-track i {
+  background: var(--red);
+}
+
+.severity-urgent .rank-badge,
+.severity-urgent .risk-track i {
+  background: var(--orange);
+}
+
+.severity-stable .rank-badge,
+.severity-stable .risk-track i {
+  background: var(--green);
+}
+
+.evac-target-body {
+  min-width: 0;
+}
+
+.target-row-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.target-row-top strong {
+  overflow: hidden;
+  color: #0f2747;
+  font-size: 17px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.target-row-top em {
+  color: var(--green);
+  font-size: 18px;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.severity-critical .target-row-top em {
+  color: var(--red);
+}
+
+.severity-urgent .target-row-top em {
+  color: var(--orange);
+}
+
+.target-vitals {
+  display: flex;
+  gap: 14px;
+  margin: 3px 0 5px;
+  color: #24486f;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.risk-track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e9eef4;
+}
+
+.risk-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.console-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: #0f2747;
+  font-size: 13px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.console-legend span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.operation-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 12px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.operation-stat-strip div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  padding: 10px 16px;
+  border-right: 1px solid var(--line);
+}
+
+.operation-stat-strip span {
+  color: #24486f;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.operation-stat-strip strong {
+  color: #0f2747;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.critical-text {
+  color: var(--red) !important;
+}
+
+.urgent-text {
+  color: var(--orange) !important;
+}
+
+.stable-text {
+  color: var(--green) !important;
 }
 
 .top-strip div {
@@ -175,6 +586,56 @@ main {
   margin: 6px 0 0;
 }
 
+.mission-status-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 0.95fr);
+  gap: 18px;
+  align-items: stretch;
+  margin-bottom: 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(37, 99, 235, 0.08);
+}
+
+.mission-title-block {
+  display: grid;
+  align-content: center;
+}
+
+.mission-title-block span {
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mission-title-block h2 {
+  margin: 8px 0;
+  font-size: clamp(26px, 3vw, 38px);
+  letter-spacing: 0;
+}
+
+.mission-title-block p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.mission-status-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mission-status-metrics .metric-card {
+  padding: 14px;
+}
+
+.mission-status-metrics .metric-card strong {
+  font-size: 24px;
+}
+
 .primary-button {
   border: 0;
   border-radius: 8px;
@@ -184,6 +645,11 @@ main {
   font-weight: 800;
   cursor: pointer;
   box-shadow: 0 12px 24px rgba(37, 99, 235, 0.22);
+}
+
+.compact-button {
+  padding: 10px 14px;
+  white-space: nowrap;
 }
 
 .metric-grid {
@@ -239,6 +705,13 @@ main {
   grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.8fr);
 }
 
+.mission-command-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(300px, 3fr);
+  gap: 18px;
+  align-items: start;
+}
+
 .panel {
   padding: 18px;
 }
@@ -280,7 +753,16 @@ main {
 
 .planning-map {
   aspect-ratio: 1 / 1;
-  max-height: 680px;
+  max-height: calc(100vh - 230px);
+  min-height: 580px;
+}
+
+.mission-map-panel {
+  min-height: calc(100vh - 170px);
+}
+
+.mission-map-panel .tactical-map {
+  width: 100%;
 }
 
 .tactical-map svg {
@@ -292,6 +774,15 @@ main {
 .map-label {
   font: 700 21px Inter, system-ui, sans-serif;
   fill: #0f2747;
+}
+
+.risk-label {
+  font-size: 17px;
+  fill: #475569;
+}
+
+.tactical-marker {
+  filter: drop-shadow(0 8px 10px rgba(15, 40, 71, 0.12));
 }
 
 .map-coordinates {
@@ -318,9 +809,119 @@ main {
   gap: 14px;
 }
 
+.mission-command-panel {
+  position: sticky;
+  top: 24px;
+  display: grid;
+  gap: 16px;
+}
+
+.mission-command-panel h3 {
+  margin: 0;
+}
+
+.mission-command-panel > p {
+  margin: -8px 0 0;
+}
+
+.command-stat-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.command-stat {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.command-stat svg {
+  color: var(--blue);
+}
+
+.command-stat span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.command-stat strong {
+  font-size: 18px;
+}
+
+.mission-marker-key {
+  display: grid;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.mission-marker-key h4 {
+  margin: 0 0 2px;
+}
+
+.mission-marker-key span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.marker-sample {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border: 2px solid currentColor;
+}
+
+.marker-sample.uav {
+  color: var(--blue);
+  clip-path: polygon(50% 0, 100% 100%, 50% 72%, 0 100%);
+  background: var(--blue);
+  border: 0;
+}
+
+.marker-sample.evac {
+  color: var(--green);
+  background:
+    linear-gradient(var(--green), var(--green)) center / 4px 13px no-repeat,
+    linear-gradient(var(--green), var(--green)) center / 13px 4px no-repeat,
+    var(--green-soft);
+  border-radius: 4px;
+}
+
+.marker-sample.relay {
+  color: var(--blue);
+  background: var(--blue-soft);
+  clip-path: polygon(50% 0, 94% 25%, 94% 75%, 50% 100%, 6% 75%, 6% 25%);
+}
+
+.marker-sample.squad {
+  color: #60a5fa;
+  background: #eef6ff;
+  border-radius: 4px;
+}
+
+.compact-readiness {
+  gap: 10px;
+}
+
 .readiness-card {
   display: flex;
   gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
 }
 
 .readiness-card svg {
@@ -331,7 +932,12 @@ main {
   display: block;
   margin: 7px 0 3px;
   color: var(--green);
-  font-size: 22px;
+  font-size: 20px;
+}
+
+.readiness-card p {
+  margin: 0;
+  font-size: 13px;
 }
 
 .command-layout {
@@ -544,6 +1150,8 @@ th {
 @media (max-width: 1040px) {
   .app-shell,
   .command-layout,
+  .mission-command-layout,
+  .mission-status-header,
   .two-columns {
     grid-template-columns: 1fr;
   }
@@ -563,6 +1171,19 @@ th {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .mission-status-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .mission-command-panel {
+    position: static;
+  }
+
+  .planning-map {
+    min-height: 520px;
+    max-height: none;
+  }
+
   .pipeline {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -575,6 +1196,7 @@ th {
 
   nav,
   .metric-grid,
+  .mission-status-metrics,
   .pipeline {
     grid-template-columns: 1fr;
   }
@@ -590,11 +1212,686 @@ th {
     width: 100%;
   }
 
+  .planning-map {
+    min-height: 360px;
+  }
+
   .target-card {
     grid-template-columns: 32px minmax(0, 1fr);
   }
 
   .target-card em {
     grid-column: 2;
+  }
+}
+
+/* Mission command polish pass */
+.tactical-command-header {
+  grid-template-columns: 220px minmax(0, 1fr) 500px;
+  gap: 22px;
+  min-height: 104px;
+  margin-bottom: 16px;
+}
+
+.command-title h1 {
+  font-size: clamp(30px, 3.35vw, 48px);
+  line-height: 1;
+  letter-spacing: 0.025em;
+}
+
+.command-title p {
+  margin-top: 9px;
+  font-size: clamp(15px, 1.25vw, 20px);
+}
+
+.command-title small {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 8px;
+  padding: 5px 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  color: var(--blue);
+  background: #eff6ff;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.command-header-cards {
+  height: 100%;
+}
+
+.header-status-card {
+  min-height: 104px;
+}
+
+.live-command-grid {
+  height: calc(100vh - 220px);
+}
+
+.terrain-layer {
+  mix-blend-mode: multiply;
+}
+
+.casualty-label {
+  font-size: 13px;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 5px;
+}
+
+.top-label {
+  font-size: 16px;
+  fill: #0f2747;
+}
+
+.rank-label {
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.casualty-marker {
+  filter: drop-shadow(0 3px 5px rgba(15, 40, 71, 0.12));
+}
+
+.top-casualty {
+  filter: drop-shadow(0 8px 14px rgba(220, 38, 38, 0.22));
+}
+
+.map-coordinates {
+  right: 16px;
+  bottom: 16px;
+  justify-content: flex-end;
+}
+
+.map-coordinates span {
+  padding: 8px 11px;
+  color: #24486f;
+  background: rgba(255, 255, 255, 0.95);
+  font-weight: 900;
+  text-transform: uppercase;
+  box-shadow: 0 8px 18px rgba(15, 40, 71, 0.08);
+}
+
+.evac-targets-console {
+  padding: 20px;
+}
+
+.evac-target-list {
+  gap: 10px;
+}
+
+.evac-target-row {
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 14px;
+  min-height: 76px;
+  padding: 12px;
+  border: 1px solid #e2edf8;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.rank-badge {
+  width: 40px;
+  height: 40px;
+  font-size: 19px;
+  box-shadow: 0 8px 18px rgba(15, 40, 71, 0.14);
+}
+
+.target-row-top {
+  align-items: baseline;
+}
+
+.target-row-top strong {
+  font-size: 16px;
+}
+
+.target-row-top em {
+  min-width: 58px;
+  font-size: 19px;
+  text-align: right;
+}
+
+.target-vitals {
+  gap: 16px;
+  margin: 5px 0 8px;
+  font-size: 14px;
+}
+
+.risk-track {
+  height: 8px;
+}
+
+.operation-stat-strip {
+  margin-top: 14px;
+}
+
+.operation-stat-strip div {
+  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 12px;
+  row-gap: 4px;
+  min-height: 78px;
+  padding: 13px 16px;
+}
+
+.operation-stat-strip span,
+.operation-stat-strip strong {
+  grid-column: 2;
+}
+
+.operation-stat-strip strong {
+  font-size: 17px;
+  white-space: nowrap;
+}
+
+.strip-icon {
+  grid-row: 1 / span 2;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--blue);
+  background: #eff6ff;
+}
+
+.strip-icon::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.critical-icon {
+  color: var(--red);
+  background: var(--red-soft);
+}
+
+.urgent-icon {
+  color: var(--orange);
+  background: var(--orange-soft);
+}
+
+.stable-icon,
+.mission-icon {
+  color: var(--green);
+  background: var(--green-soft);
+}
+
+.uav-icon::before {
+  width: 18px;
+  height: 18px;
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 50% 72%, 0 100%);
+}
+
+.cuda-icon::before {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 3px #eff6ff;
+}
+
+.data-icon::before {
+  width: 17px;
+  height: 17px;
+  border-radius: 4px;
+}
+
+@media (max-width: 1180px) {
+  .tactical-command-header,
+  .live-command-grid,
+  .operation-stat-strip {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .command-header-cards {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .header-status-card + .header-status-card {
+    border-left: 1px solid #cfe0f2;
+    border-radius: 8px;
+  }
+
+  .command-map-surface {
+    min-height: 620px;
+  }
+}
+
+/* Tactical Command full-screen console */
+.app-shell.command-active {
+  display: block;
+}
+
+.command-active .sidebar,
+.command-active .top-strip {
+  display: none;
+}
+
+.command-active main {
+  padding: 0;
+}
+
+.tactical-live-console {
+  --ops-header-height: 96px;
+  --ops-footer-height: 72px;
+  display: grid;
+  grid-template-rows: var(--ops-header-height) minmax(0, 1fr) var(--ops-footer-height);
+  gap: 12px;
+  min-height: 100vh;
+  height: 100vh;
+  padding: 12px 16px;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.045) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(37, 99, 235, 0.045) 1px, transparent 1px),
+    #f7fbff;
+  background-size: 48px 48px;
+}
+
+.ops-header {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr) 510px;
+  gap: 18px;
+  align-items: stretch;
+  min-height: var(--ops-header-height);
+  height: var(--ops-header-height);
+}
+
+.ops-logo,
+.ops-status-cluster article,
+.ops-map-panel,
+.live-evac-panel,
+.live-status-bar {
+  border: 1px solid #c9dcef;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.ops-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.ops-logo strong,
+.ops-logo span {
+  display: block;
+}
+
+.ops-logo strong {
+  color: var(--blue);
+  font-weight: 950;
+  letter-spacing: 0.04em;
+}
+
+.ops-logo span {
+  color: #24486f;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.ops-title-block {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  padding: 0 4px;
+}
+
+.ops-title-block h1 {
+  margin: 0;
+  color: #0f2747;
+  font-size: clamp(28px, 3.05vw, 44px);
+  line-height: 1.04;
+  font-weight: 950;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ops-title-block h1 span {
+  color: #1683ff;
+}
+
+.ops-title-block p {
+  margin: 5px 0 7px;
+  color: #24486f;
+  font-size: clamp(14px, 1.15vw, 18px);
+  line-height: 1.2;
+}
+
+.ops-top-nav {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ops-top-nav button {
+  width: auto;
+  padding: 5px 10px;
+  border: 1px solid #c9dcef;
+  border-radius: 999px;
+  color: #24486f;
+  background: #ffffff;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ops-top-nav button.active,
+.ops-top-nav button:hover {
+  color: #ffffff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.ops-status-cluster {
+  display: grid;
+  grid-template-columns: 1.2fr 0.85fr 0.95fr;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ops-status-cluster article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: 1fr 1fr;
+  align-items: center;
+  column-gap: 10px;
+  height: 100%;
+  min-height: 0;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.ops-status-cluster svg {
+  grid-row: 1 / span 2;
+  color: #0f2747;
+}
+
+.ops-status-cluster span {
+  align-self: end;
+  color: #24486f;
+  font-size: 11px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
+.ops-status-cluster strong {
+  align-self: start;
+  overflow: hidden;
+  color: var(--green);
+  font-size: 16px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ops-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 390px;
+  gap: 16px;
+  height: calc(100vh - var(--ops-header-height) - var(--ops-footer-height) - 48px);
+  min-height: 0;
+}
+
+.ops-map-panel {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.ops-map-panel .tactical-map {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  aspect-ratio: auto;
+}
+
+.ops-map-panel .planning-map {
+  min-height: 0;
+  max-height: none;
+}
+
+.ops-map-panel .tactical-map svg {
+  width: 100%;
+  height: 100%;
+}
+
+.ops-map-panel .terrain-layer {
+  opacity: 0.44;
+}
+
+.ops-map-panel .map-coordinates {
+  right: 14px;
+  bottom: 14px;
+}
+
+.ops-map-panel .map-coordinates span {
+  border-color: #bfdbfe;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.live-evac-panel {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.live-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #1683ff;
+}
+
+.live-panel-title h2 {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1;
+  font-weight: 950;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.live-panel-subtitle {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #dce9f6;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.live-target-list {
+  display: grid;
+  grid-template-rows: repeat(10, minmax(0, 1fr));
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.live-target-row {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 0;
+  padding: 8px 9px;
+  border: 1px solid #e2edf8;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.live-rank {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 6px;
+  color: #ffffff;
+  background: var(--green);
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.severity-critical .live-rank,
+.severity-critical .live-risk-bar i {
+  background: var(--red);
+}
+
+.severity-urgent .live-rank,
+.severity-urgent .live-risk-bar i {
+  background: var(--orange);
+}
+
+.severity-stable .live-rank,
+.severity-stable .live-risk-bar i {
+  background: var(--green);
+}
+
+.live-target-content {
+  min-width: 0;
+}
+
+.live-target-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.live-target-top strong {
+  overflow: hidden;
+  color: #0f2747;
+  font-size: 14px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.live-target-top em {
+  color: var(--green);
+  font-size: 17px;
+  font-style: normal;
+  font-weight: 950;
+  text-align: right;
+}
+
+.severity-critical .live-target-top em {
+  color: var(--red);
+}
+
+.severity-urgent .live-target-top em {
+  color: var(--orange);
+}
+
+.live-vitals {
+  display: flex;
+  gap: 12px;
+  margin: 3px 0 6px;
+  color: #24486f;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.live-risk-bar {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8eef5;
+}
+
+.live-risk-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
+.live-status-bar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  height: var(--ops-footer-height);
+  min-height: var(--ops-footer-height);
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.live-status-bar div {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 14px;
+  border-right: 1px solid #dce9f6;
+}
+
+.live-status-bar span {
+  overflow: hidden;
+  color: #24486f;
+  font-size: 11px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.live-status-bar strong {
+  overflow: hidden;
+  color: #0f2747;
+  font-size: 16px;
+  font-weight: 950;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .tactical-live-console {
+    height: auto;
+    min-height: 100vh;
+    overflow: auto;
+  }
+
+  .ops-header,
+  .ops-main-grid,
+  .live-status-bar {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .ops-status-cluster,
+  .live-status-bar {
+    grid-template-columns: 1fr;
+  }
+
+  .ops-main-grid {
+    min-height: 720px;
+  }
+
+  .ops-map-panel {
+    min-height: 520px;
   }
 }
