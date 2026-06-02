@@ -454,6 +454,11 @@ static void error_metrics(const std::vector<float>& cpu,
     *mean_abs_error = static_cast<float>(sum_err / static_cast<double>(cpu.size()));
 }
 
+static float median_ms(std::vector<float> times) {
+    std::sort(times.begin(), times.end());
+    return times[times.size() / 2];
+}
+
 static BenchmarkRow run_case(int N, int d_model, bool keep_default_outputs,
                              std::vector<Soldier>* default_soldiers,
                              std::vector<float>* default_gpu_output,
@@ -472,13 +477,33 @@ static BenchmarkRow run_case(int N, int d_model, bool keep_default_outputs,
     matmul_cpu(X, Wk, K, N, d_model, d_model);
     matmul_cpu(X, Wv, V, N, d_model, d_model);
 
-    auto cpu_start = std::chrono::high_resolution_clock::now();
-    attention_cpu(X, Wq, Wk, Wv, cpu_output, nullptr, N, d_model);
-    auto cpu_stop = std::chrono::high_resolution_clock::now();
-    float cpu_ms = std::chrono::duration<float, std::milli>(cpu_stop - cpu_start).count();
+    const int benchmark_repeats = 5;
+    std::vector<float> cpu_times;
+    std::vector<float> gpu_times;
+    cpu_times.reserve(benchmark_repeats);
+    gpu_times.reserve(benchmark_repeats);
 
-    float gpu_ms = 0.0f;
-    attention_gpu(Q, K, V, gpu_output, keep_default_outputs ? &gpu_attention : nullptr, N, d_model, &gpu_ms);
+    for (int repeat = 0; repeat < benchmark_repeats; ++repeat) {
+        auto cpu_start = std::chrono::high_resolution_clock::now();
+        attention_cpu(X, Wq, Wk, Wv, cpu_output, nullptr, N, d_model);
+        auto cpu_stop = std::chrono::high_resolution_clock::now();
+        cpu_times.push_back(std::chrono::duration<float, std::milli>(cpu_stop - cpu_start).count());
+    }
+
+    std::vector<float> warmup_output(N * d_model);
+    float warmup_ms = 0.0f;
+    attention_gpu(Q, K, V, warmup_output, nullptr, N, d_model, &warmup_ms);
+
+    for (int repeat = 0; repeat < benchmark_repeats; ++repeat) {
+        float elapsed_ms = 0.0f;
+        bool capture_outputs = keep_default_outputs && (repeat == benchmark_repeats - 1);
+        attention_gpu(Q, K, V, gpu_output, capture_outputs ? &gpu_attention : nullptr,
+                      N, d_model, &elapsed_ms);
+        gpu_times.push_back(elapsed_ms);
+    }
+
+    float cpu_ms = median_ms(cpu_times);
+    float gpu_ms = median_ms(gpu_times);
 
     float max_err = 0.0f;
     float mean_err = 0.0f;
