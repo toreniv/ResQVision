@@ -5,6 +5,7 @@ import {
   Clock,
   Cpu,
   Crosshair,
+  Eye,
   MapPinned,
   Network,
   Plane,
@@ -36,7 +37,8 @@ const navItems = [
   { id: 'mission', label: 'Mission Plan', icon: MapPinned },
   { id: 'command', label: 'Tactical Command', icon: Crosshair },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
-  { id: 'architecture', label: 'System Architecture', icon: Network }
+  { id: 'architecture', label: 'System Architecture', icon: Network },
+  { id: 'cv', label: 'Computer Vision', icon: Eye }
 ];
 
 function useCudaData() {
@@ -648,6 +650,122 @@ function SystemArchitecture() {
   );
 }
 
+const CV_MOCK = [
+  { id: 1, class: 'person', confidence: 0.94, bbox: [120, 80, 200, 340] },
+  { id: 2, class: 'person', confidence: 0.87, bbox: [310, 95, 180, 310] },
+  { id: 3, class: 'person', confidence: 0.76, bbox: [520, 110, 165, 290] }
+];
+
+function confidenceClass(c) {
+  if (c >= 0.85) return 'cv-conf-green';
+  if (c >= 0.65) return 'cv-conf-orange';
+  return 'cv-conf-red';
+}
+
+function ComputerVision() {
+  const [detections, setDetections] = useState(null);
+  const [source, setSource] = useState('loading');
+  const [previewAvailable, setPreviewAvailable] = useState(true);
+
+  // Cache-busting so Vite/browser picks up a freshly-written JPG
+  const previewSrc = `/data/detection_preview.jpg?t=${Date.now()}`;
+
+  useEffect(() => {
+    fetch('/data/detections.json')
+      .then((res) => {
+        if (!res.ok) throw new Error('not found');
+        return res.json();
+      })
+      .then((data) => {
+        console.log(`[ResQVision] Loaded ${data.length} detections from detections.json`);
+        setDetections(data);
+        setSource('live');
+      })
+      .catch(() => {
+        setDetections(CV_MOCK);
+        setSource('mock');
+      });
+  }, []);
+
+  const list = detections ?? CV_MOCK;
+
+  return (
+    <section className="cv-page">
+      <PageHeader
+        eyebrow="Computer vision"
+        title="Detection Preview"
+        description="YOLO inference is generated externally by Python/Colab. This page only visualizes detection artifacts."
+      />
+
+      <div className="cv-note">
+        <Eye size={15} />
+        <span>YOLO inference is generated externally by Python/Colab. This page only visualizes detection artifacts.</span>
+        <span className={`cv-source-badge ${source === 'live' ? 'cv-badge-live' : source === 'mock' ? 'cv-badge-mock' : 'cv-badge-loading'}`}>
+          {source === 'live' ? 'Live JSON' : source === 'mock' ? 'Mock data' : 'Loading…'}
+        </span>
+      </div>
+
+      <div className="cv-layout">
+        <section className="panel cv-preview-panel">
+          <div className="panel-title">
+            <h3>Detection Preview</h3>
+            <span>Image / video frame</span>
+          </div>
+          {previewAvailable ? (
+            <img
+              src={previewSrc}
+              alt="YOLO detection preview"
+              className="cv-preview-image"
+              onError={() => setPreviewAvailable(false)}
+            />
+          ) : (
+            <div className="cv-image-placeholder">
+              <Eye size={48} strokeWidth={1.2} />
+              <p>Detection Preview</p>
+              <small>Place <code>detection_preview.jpg</code> in <code>public/data/</code> to show a real frame</small>
+            </div>
+          )}
+        </section>
+
+        <section className="panel cv-detections-panel">
+          <div className="panel-title">
+            <h3>Detections</h3>
+            <span>{list.length} object{list.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div className="cv-detection-list">
+            {list.map((det) => (
+              <article key={det.id} className="cv-detection-row">
+                <div className="cv-det-id">#{det.id}</div>
+                <div className="cv-det-body">
+                  <div className="cv-det-top">
+                    <strong>{det.class}</strong>
+                    <span className={`cv-confidence ${confidenceClass(det.confidence)}`}>
+                      {(det.confidence * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="cv-det-bbox">
+                    bbox&nbsp;&nbsp;[
+                    {det.bbox.map((v, i) => (
+                      <span key={i}>{i > 0 ? ', ' : ''}{v}</span>
+                    ))}
+                    ]&nbsp;&nbsp;<small>x, y, w, h</small>
+                  </div>
+                  <div className="cv-conf-bar">
+                    <div
+                      className={`cv-conf-fill ${confidenceClass(det.confidence)}`}
+                      style={{ width: `${(det.confidence * 100).toFixed(1)}%` }}
+                    />
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
   const [activePage, setActivePage] = useState('mission');
   const [expandedMap, setExpandedMap] = useState(null);
@@ -672,7 +790,8 @@ export default function App() {
     mission: <MissionPlan riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} setActivePage={setActivePage} setExpandedMap={setExpandedMap} />,
     command: <TacticalCommand riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} setExpandedMap={setExpandedMap} />,
     analytics: <Analytics benchmarks={cudaData.benchmarks} attentionStats={cudaData.attentionStats} />,
-    architecture: <SystemArchitecture />
+    architecture: <SystemArchitecture />,
+    cv: <ComputerVision />
   }[activePage];
 
   return (

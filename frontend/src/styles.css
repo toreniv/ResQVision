@@ -1374,3 +1374,222 @@ th {
     min-height: 360px;
   }
 }
+
+/* ── Computer Vision page ─────────────────────────────────── */
+.cv-page {
+  /* inherits standard page padding from main */
+}
+
+.cv-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 10px 14px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.cv-note svg {
+  flex: 0 0 auto;
+  color: #2563eb;
+}
+
+.cv-note > span:first-of-type {
+  flex: 1;
+}
+
+.cv-source-badge {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cv-badge-live {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.cv-badge-mock {
+  background: var(--orange-soft);
+  color: var(--orange);
+}
+
+.cv-badge-loading {
+  background: #f1f5f9;
+  color: var(--muted);
+}
+
+.cv-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.9fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.cv-preview-panel,
+.cv-detections-panel {
+  /* .panel styles already apply */
+}
+
+.cv-image-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 380px;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: var(--muted);
+  text-align: center;
+  padding: 24px;
+}
+
+.cv-image-placeholder svg {
+  opacity: 0.35;
+  color: var(--blue);
+}
+
+.cv-image-placeholder p {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.cv-image-placeholder small {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.55;
+  max-width: 280px;
+}
+
+.cv-image-placeholder code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #e2e8f0;
+  font-size: 11px;
+}
+
+.cv-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 14px;
+  display: block;
+}
+
+.cv-detection-list {
+  display: grid;
+  gap: 10px;
+}
+
+.cv-detection-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 10px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid var(--line);
+}
+
+.cv-det-id {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: 8px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.cv-det-body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.cv-det-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cv-det-top strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  text-transform: capitalize;
+}
+
+.cv-confidence {
+  font-size: 13px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.cv-conf-green {
+  color: var(--green);
+  background: var(--green-soft);
+}
+
+.cv-conf-orange {
+  color: var(--orange);
+  background: var(--orange-soft);
+}
+
+.cv-conf-red {
+  color: var(--red);
+  background: var(--red-soft);
+}
+
+.cv-det-bbox {
+  font-size: 12px;
+  color: var(--muted);
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+
+.cv-det-bbox small {
+  font-size: 10px;
+  font-family: inherit;
+  opacity: 0.7;
+}
+
+.cv-conf-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.cv-conf-fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.4s ease;
+}
+
+.cv-conf-fill.cv-conf-green  { background: var(--green); }
+.cv-conf-fill.cv-conf-orange { background: var(--orange); }
+.cv-conf-fill.cv-conf-red    { background: var(--red); }
+
+@media (max-width: 1120px) {
+  .cv-layout {
+    grid-template-columns: 1fr;
+  }
+}

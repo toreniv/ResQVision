@@ -1,26 +1,105 @@
+# =========================
+# Python
+# =========================
+
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+
+# =========================
+# Jupyter / Colab
+# =========================
+
+.ipynb_checkpoints/
+
+# =========================
+# Node / React / Vite
+# =========================
+
+node_modules/
+frontend/node_modules/
+
+dist/
+frontend/dist/
+
+# =========================
+# VS Code
+# =========================
+
+.vscode/
+*.code-workspace
+
+# =========================
 # Build outputs
+# =========================
 
 *.exe
 *.obj
 *.pdb
 *.ilk
 
-# CSV outputs
+# =========================
+# CUDA outputs
+# =========================
 
 benchmark_results.csv
 risk_ranking.csv
 attention_stats.csv
 attention_heatmap.csv
 
-# Python
+# =========================
+# YOLO / Ultralytics
+# =========================
 
-__pycache__/
-*.pyc
+*.pt
+runs/
+datasets/
 
-# Jupyter
+# Generated detection artifacts
+frontend/public/data/detection_preview.jpg
 
-.ipynb_checkpoints/
+# Optional:
+# אם אתה רוצה שהדשבורד יקבל נתונים אמיתיים מגיט - אל תתעלם מה-JSON
+# אם לא - בטל הערה מהשורות הבאות
 
-# VSCode local
+# frontend/public/data/detections.json
+# frontend/public/data/risk_ranking.json
+# frontend/public/data/attention_stats.json
+# frontend/public/data/benchmark_results.json
 
-.vscode/*.log
+# =========================
+# Windows
+# =========================
+
+Thumbs.db
+Desktop.ini
+
+# =========================
+# Logs
+# =========================
+
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# Temporary files
+# =========================
+
+temp/
+tmp/
+*.tmp
