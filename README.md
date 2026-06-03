@@ -12,6 +12,15 @@ The project explores how modern AI attention mechanisms can be accelerated using
 
 A simulated drone observes the battlefield while soldiers continuously transmit physiological telemetry inspired by the ResQBand concept. The system processes this information using a CUDA-accelerated scaled dot-product attention engine and generates evacuation priorities in real time.
 
+ResQVision now includes:
+* CUDA Attention Engine
+* JSON export pipeline
+* React tactical dashboard
+* Attention visualization layer
+* Rule-based operational recommendations
+
+The dashboard consumes CUDA-generated outputs and visualizes battlefield decision-support information.
+
 ---
 ## Project Motivation
 
@@ -72,6 +81,89 @@ The system computes:
 * Battlefield Risk Map
 * Top Evacuation Targets
 * Benchmark Performance Graphs
+
+---
+
+## Frontend Dashboard
+
+### Mission Plan
+* Pre-operation planning dashboard
+* Mission readiness overview
+* Priority casualty preview
+* Operational map
+
+### Tactical Command
+* Live casualty ranking
+* Tactical map
+* Attention halo visualization
+* Recommended Actions panel
+* UAV routing indicators
+
+### Analytics
+* CPU vs GPU benchmark charts
+* Speedup analysis
+* Correctness validation
+* Performance metrics
+
+### System Architecture
+* End-to-end pipeline visualization
+* Simulated vs real components
+* Data flow overview
+
+---
+
+## JSON Integration Workflow
+
+CUDA Output
+↓
+CSV Files
+↓
+JSON Export
+↓
+frontend/public/data
+↓
+React Dashboard
+
+Artifacts include:
+* `benchmark_results.json`
+* `risk_ranking.json`
+* `attention_stats.json`
+
+**Fallback behavior:**
+If JSON files are unavailable, the dashboard automatically falls back to mock data.
+
+---
+
+## Attention Visualization Layer
+
+`attention_stats.json` contains:
+* `soldier_id`
+* `max_attention`
+* `mean_attention`
+* `entropy`
+
+* Top 3 attention targets → red halo
+* Next 3 attention targets → orange halo
+* Remaining targets → blue halo
+
+The visualization is derived directly from CUDA attention outputs.
+
+---
+
+## Operational Decision Support
+
+The dashboard features a Recommended Action Engine that derives actions from:
+* Risk ranking
+* Casualty category
+* Physiological status
+
+Example actions:
+* Evacuate Soldier 388
+* Dispatch Trauma Team Bravo
+* Route UAV-1 to casualty cluster
+* Monitor Soldier 282
+
+**Note:** This is a rule-based prototype and not a clinical decision system.
 
 ---
 
@@ -180,6 +272,17 @@ Metrics:
 
 ---
 
+## Current Demonstrated Results
+
+* 49× GPU acceleration (512 soldiers benchmark)
+* Successful CPU/GPU correctness validation
+* Top-10 overlap validation
+* Attention-based casualty prioritization
+* Tactical map visualization
+* Recommended Action Engine
+
+---
+
 ## Expected Results
 
 The project aims to demonstrate:
@@ -208,15 +311,20 @@ ResQVision/
 ├── ResQVision_Colab_Workflow.ipynb
 ├── README.md
 │
-├── docs/
-│
 ├── outputs/
 │   ├── benchmark_results.csv
 │   ├── risk_ranking.csv
 │   ├── attention_stats.csv
-│   └── attention_heatmap.csv
 │
-└── .gitignore
+├── frontend/
+│   ├── public/data/
+│   │   ├── benchmark_results.json
+│   │   ├── risk_ranking.json
+│   │   └── attention_stats.json
+│   │
+│   └── src/
+│
+└── docs/
 ```
 
 ---
@@ -251,24 +359,29 @@ Generated outputs:
 * YOLO-based soldier detection
 * Multi-object tracking
 * Casualty localization
+* YOLO casualty detection
 
 ### Autonomous Drone Support
 
 * GPS-denied navigation
 * Visual Odometry
 * SLAM-based positioning
+* Live UAV integration
 
 ### Battlefield Command Center
 
 * Real-time dashboard
 * Drone command view
 * Interactive evacuation planning
+* Direct CUDA-to-dashboard updates
 
 ### ResQBand Integration
 
 * Real telemetry ingestion
 * LoRa communication layer
 * Wearable sensor network simulation
+* Real-time telemetry streaming
+* ResQBand hardware integration
 
 ---
 
