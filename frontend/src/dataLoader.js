@@ -5,7 +5,16 @@ function normalizeBenchmarkRow(row) {
   const gpu = Number(row.GPU_time_ms ?? row.gpu ?? row.gpu_ms ?? 0);
   const speedup = Number(row.speedup ?? row.Speedup ?? 0);
   if (!soldiers || !cpu) return null;
-  return { soldiers, cpu, gpu, speedup };
+  return {
+    soldiers,
+    cpu,
+    gpu,
+    speedup,
+    correctness: row.correctness ?? row.status,
+    maxAbsError: row.max_abs_error ?? row.maxAbsError,
+    meanAbsError: row.mean_abs_error ?? row.meanAbsError,
+    top10Overlap: row.top10_overlap ?? row.top10Overlap
+  };
 }
 
 function normalizeRiskRow(row, index) {

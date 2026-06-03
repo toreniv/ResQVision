@@ -366,19 +366,30 @@ function TacticalCommand({ riskRanking, setExpandedMap }) {
 }
 
 function Analytics({ benchmarks, attentionStats }) {
+  const benchmarkSource = benchmarks ?? benchmarkRows;
   const chartData = useMemo(
     () => {
-      const source = benchmarks ?? benchmarkRows;
-      return source.map((row) => ({
+      return benchmarkSource.map((row) => ({
         soldiers: row.soldiers,
         CPU: row.cpu ?? row.CPU,
         GPU: row.gpu ?? row.GPU,
         speedup: row.speedup
       }));
     },
-    [benchmarks]
+    [benchmarkSource]
   );
-  const metrics = attentionStats ?? correctnessMetrics;
+  const lastBenchmark = benchmarks?.length
+    ? benchmarks.reduce((largest, row) => (row.soldiers > largest.soldiers ? row : largest), benchmarks[0])
+    : null;
+  const metrics = lastBenchmark
+    ? {
+        status: lastBenchmark.correctness ?? 'PASS',
+        top10Overlap: `${lastBenchmark.top10Overlap}/10`,
+        maxAbsError: lastBenchmark.maxAbsError,
+        meanAbsError: lastBenchmark.meanAbsError,
+        attentionEntropy: correctnessMetrics.attentionEntropy
+      }
+    : attentionStats ?? correctnessMetrics;
 
   return (
     <section>
@@ -426,7 +437,7 @@ function Analytics({ benchmarks, attentionStats }) {
         <section className="panel">
           <div className="panel-title">
             <h3>Benchmark Table</h3>
-            <span>Hardcoded sample output</span>
+            <span>{benchmarks ? 'CUDA benchmark output' : 'Mock fallback output'}</span>
           </div>
           <table>
             <thead>
@@ -438,7 +449,7 @@ function Analytics({ benchmarks, attentionStats }) {
               </tr>
             </thead>
             <tbody>
-              {benchmarkRows.map((row) => (
+              {benchmarkSource.map((row) => (
                 <tr key={row.soldiers}>
                   <td>{row.soldiers}</td>
                   <td>{row.cpu}</td>
