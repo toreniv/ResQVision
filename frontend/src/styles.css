@@ -1376,10 +1376,6 @@ th {
 }
 
 /* ── Computer Vision page ─────────────────────────────────── */
-.cv-page {
-  /* inherits standard page padding from main */
-}
-
 .cv-note {
   display: flex;
   align-items: center;
@@ -1433,11 +1429,6 @@ th {
   grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.9fr);
   gap: 18px;
   align-items: start;
-}
-
-.cv-preview-panel,
-.cv-detections-panel {
-  /* .panel styles already apply */
 }
 
 .cv-image-placeholder {
