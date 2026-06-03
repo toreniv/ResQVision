@@ -37,6 +37,9 @@ try {
         Copy-Item -LiteralPath $Matches[0].FullName -Destination $FrontendDataDir -Force
         Write-Host "[OK] Imported $FileName"
     }
+} catch {
+    Write-Host "[WARN] Colab import failed: $($_.Exception.Message)"
+    exit 1
 } finally {
     if (Test-Path $TempDir) {
         Remove-Item -LiteralPath $TempDir -Recurse -Force
@@ -44,3 +47,4 @@ try {
 }
 
 Write-Host "[OK] Colab data import complete. JSON files are in frontend/public/data."
+exit 0

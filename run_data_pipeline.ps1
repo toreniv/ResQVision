@@ -10,15 +10,35 @@ Write-Host "------------------------"
 
 & $CheckCuda
 $CudaAvailable = ($LASTEXITCODE -eq 0)
+$PipelineExitCode = 1
+$CompletedThroughFallback = $false
 
 if ($CudaAvailable) {
     Write-Host "[INFO] CUDA is available. Running local CUDA pipeline."
     & $RunLocal
     $PipelineExitCode = $LASTEXITCODE
+
+    if ($PipelineExitCode -eq 0) {
+        Write-Host "[OK] Data pipeline completed successfully through local CUDA."
+    } else {
+        Write-Host "[WARN] Local CUDA pipeline failed. Trying Colab ZIP import."
+        & $ImportColab
+        $PipelineExitCode = $LASTEXITCODE
+        if ($PipelineExitCode -eq 0) {
+            $CompletedThroughFallback = $true
+        }
+    }
 } else {
     Write-Host "[INFO] CUDA is unavailable. Falling back to Colab ZIP import."
     & $ImportColab
     $PipelineExitCode = $LASTEXITCODE
+    if ($PipelineExitCode -eq 0) {
+        $CompletedThroughFallback = $true
+    }
+}
+
+if ($CompletedThroughFallback) {
+    Write-Host "[OK] Data pipeline completed successfully through Colab fallback."
 }
 
 Write-Host ""
