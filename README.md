@@ -201,6 +201,10 @@ python scripts/fuse_yolo_to_tactical.py
 
 `run_data_pipeline.ps1` also refreshes this artifact automatically and does not fail the pipeline if YOLO data is unavailable.
 
+Generated artifacts:
+* `detections.json`
+* `tactical_fusion.json`
+
 ---
 
 ### CUDA
@@ -463,6 +467,136 @@ Future versions will introduce:
 
 ---
 
+## CUDA Thread Mapping and Design Decisions
+
+### Thread Mapping Strategy
+
+The core CUDA computation implements the Scaled Dot-Product Attention mechanism:
+
+```text
+Attention(Q, K, V) = softmax((Q × Kᵀ) / sqrt(d)) × V
+```
+
+The computation is divided into four CUDA kernels:
+
+1. QKᵀ Matrix Multiplication
+2. Attention Scaling
+3. Row-wise Softmax
+4. Attention × V Multiplication
+
+For the matrix multiplication stage, each CUDA thread computes exactly one output element:
+
+```cpp
+row = blockIdx.y * blockDim.y + threadIdx.y;
+col = blockIdx.x * blockDim.x + threadIdx.x;
+```
+
+Each thread calculates:
+
+```text
+score[row][col]
+```
+
+This mapping was selected because every output element is independent and can be computed in parallel.
+
+Boundary checks are used to avoid invalid memory accesses:
+
+```cpp
+if (row < N && col < N)
+```
+
+### Grid and Block Configuration
+
+The project uses:
+
+```text
+2D Grid
+2D Thread Blocks
+```
+
+because the attention score matrix is naturally two-dimensional.
+
+A typical configuration is:
+
+```text
+16 × 16 Threads per Block
+= 256 Threads
+```
+
+This configuration was chosen because it:
+
+- Maps naturally to matrix operations
+- Provides good GPU occupancy
+- Remains well below CUDA block limits
+- Allows efficient scheduling across Streaming Multiprocessors
+- Balances performance and implementation simplicity
+
+### Memory Design Decisions
+
+The baseline implementation primarily uses global memory.
+
+This choice was made to:
+
+- Keep the implementation simple
+- Improve readability
+- Simplify correctness validation
+- Make debugging easier
+
+Separate kernels were intentionally used for:
+
+- QKᵀ
+- Scaling
+- Softmax
+- Attention × V
+
+This follows the project requirements and makes each stage independently testable.
+
+### CPU vs GPU Validation
+
+The CUDA implementation is validated against a reference CPU implementation.
+
+Validation includes:
+
+- Numerical correctness checks
+- Error analysis
+- Top-10 ranking overlap
+- Benchmark comparison
+
+The project demonstrates approximately:
+
+```text
+49× GPU Speedup
+```
+
+for the main benchmark configuration.
+
+### Current Bottlenecks
+
+The current implementation focuses on correctness rather than maximum performance.
+
+Potential bottlenecks include:
+
+1. Global Memory Access Latency
+2. Separate Kernel Launch Overhead
+3. Row-wise Softmax Reductions
+4. Repeated Memory Loads During Matrix Multiplication
+5. Host-to-Device Data Transfers
+
+### Future Optimization Opportunities
+
+Future CUDA optimizations include:
+
+- Shared Memory Tiling
+- Kernel Fusion
+- Memory Coalescing Improvements
+- Occupancy Tuning
+- Optimized Parallel Reductions
+- Larger Battlefield Simulations
+
+These optimizations can further improve performance while preserving correctness.
+
+---
+
 ## Performance Optimization Roadmap
 
 Current implementation focuses on correctness and baseline CUDA execution.
@@ -552,6 +686,7 @@ ResQVision/
 ├── scripts/
 │   ├── yolo_detect.py
 │   ├── yolo_live.py
+│   ├── fuse_yolo_to_tactical.py
 │   └── csv_to_json.py
 │
 ├── outputs/
@@ -565,7 +700,8 @@ ResQVision/
 │   │   ├── benchmark_results.json
 │   │   ├── risk_ranking.json
 │   │   ├── attention_stats.json
-│   │   └── detections.json
+│   │   ├── detections.json
+│   │   └── tactical_fusion.json
 │   └── src/
 │       ├── App.jsx
 │       └── styles.css
@@ -604,8 +740,8 @@ Export all artifacts as ZIP — run the last cell in `ResQVision_Colab_Workflow.
 
 ### Computer Vision
 * Multi-object tracking
-* Casualty localization on tactical map
-* YOLO + risk ranking fusion
+* Multi-camera fusion
+* Temporal casualty tracking
 
 ### Autonomous Drone Support
 * GPS-denied navigation
