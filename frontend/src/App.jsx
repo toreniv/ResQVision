@@ -487,6 +487,17 @@ function Analytics({ benchmarks, attentionStats }) {
 }
 
 function SystemArchitecture() {
+  const realPipelineSteps = [
+    'CUDA / Colab Simulation',
+    'CSV Artifact Export',
+    'JSON Conversion',
+    'React dataLoader',
+    'Benchmark Analytics',
+    'Risk Ranking',
+    'Tactical Map Markers',
+    'Evacuation Decision Queue'
+  ];
+
   return (
     <section>
       <PageHeader
@@ -498,7 +509,7 @@ function SystemArchitecture() {
       <section className="panel pipeline-panel">
         <h3>Operational Pipeline</h3>
         <div className="pipeline">
-          {architectureSteps.map((step, index) => (
+          {realPipelineSteps.map((step, index) => (
             <div className="pipeline-step" key={step}>
               <span>{index + 1}</span>
               <strong>{step}</strong>
@@ -509,25 +520,54 @@ function SystemArchitecture() {
 
       <div className="content-grid two-columns">
         <section className="panel cuda-panel">
-          <Cpu size={28} />
-          <h3>CUDA Attention Engine</h3>
+          <Network size={28} />
+          <h3>Live Data Flow</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginTop: '18px' }}>
+            <div className="pipeline-step" style={{ minHeight: 'auto', padding: '12px', flex: '1 1 auto' }}><strong>CUDA C++ Attention Engine</strong></div>
+            <span style={{ color: 'var(--muted)', fontWeight: 'bold' }}>→</span>
+            <div className="pipeline-step" style={{ minHeight: 'auto', padding: '12px', flex: '1 1 auto' }}><strong>benchmark_results.json</strong></div>
+            <span style={{ color: 'var(--muted)', fontWeight: 'bold' }}>→</span>
+            <div className="pipeline-step" style={{ minHeight: 'auto', padding: '12px', flex: '1 1 auto' }}><strong>risk_ranking.json</strong></div>
+            <span style={{ color: 'var(--muted)', fontWeight: 'bold' }}>→</span>
+            <div className="pipeline-step" style={{ minHeight: 'auto', padding: '12px', flex: '1 1 auto' }}><strong>attention_stats.json</strong></div>
+            <span style={{ color: 'var(--muted)', fontWeight: 'bold' }}>→</span>
+            <div className="pipeline-step" style={{ minHeight: 'auto', padding: '12px', flex: '1 1 auto' }}><strong>React dashboard</strong></div>
+          </div>
+        </section>
+        <section className="panel cuda-panel">
+          <ShieldCheck size={28} />
+          <h3>Fallback Safety Layer</h3>
           <ul>
-            <li>QK^T matrix multiplication computes soldier-to-soldier attention affinity.</li>
-            <li>Scaling stabilizes the attention logits before normalization.</li>
-            <li>Row-wise softmax produces probability distributions over battlefield context.</li>
-            <li>Attention @ V aggregates risk-relevant telemetry and visual features.</li>
-            <li>CPU/GPU correctness validation confirms numerical agreement and top-rank overlap.</li>
+            <li>If JSON files exist, dashboard uses CUDA output.</li>
+            <li>If JSON files are missing or malformed, dashboard falls back to mock data.</li>
+            <li>This keeps the demo stable.</li>
           </ul>
         </section>
-        <section className="panel architecture-note">
-          <RadioTower size={28} />
-          <h3>Defense-Medical Data Flow</h3>
-          <p>
-            ResQVision fuses UAV observation, YOLO soldier localization, and ResQBand telemetry into a feature matrix that the CUDA kernel can rank at operational speed.
-          </p>
-          <p>
-            The tactical dashboard turns those rankings into evacuation targets, routing cues, and medical command readiness indicators.
-          </p>
+      </div>
+
+      <div className="content-grid two-columns">
+        <section className="panel cuda-panel">
+          <Activity size={28} />
+          <h3>What is still simulated</h3>
+          <ul>
+            <li>UAV imagery</li>
+            <li>YOLO detection</li>
+            <li>ResQBand live telemetry</li>
+            <li>Real-time backend</li>
+            <li>Clinical decision approval</li>
+          </ul>
+        </section>
+        <section className="panel cuda-panel">
+          <Cpu size={28} />
+          <h3>What is real now</h3>
+          <ul>
+            <li>CUDA benchmark output</li>
+            <li>Risk ranking JSON</li>
+            <li>Attention statistics JSON</li>
+            <li>Analytics charts</li>
+            <li>Tactical Command top targets</li>
+            <li>Tactical map casualty markers</li>
+          </ul>
         </section>
       </div>
     </section>
