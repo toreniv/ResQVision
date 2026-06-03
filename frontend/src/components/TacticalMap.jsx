@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { mapObjects } from '../data.js';
 
 const colors = {
@@ -30,7 +30,7 @@ function clampViewBox(nextViewBox) {
   };
 }
 
-export default function TacticalMap({ planning = false, showArrows = false, soldiers = [] }) {
+export default function TacticalMap({ planning = false, showArrows = false, soldiers = [], attentionData = [] }) {
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: MAP_SIZE, h: MAP_SIZE });
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef(null);
@@ -38,6 +38,49 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
   const svgRef = useRef(null);
   const visibleSoldiers = soldiers.slice(0, 10);
   const topThree = visibleSoldiers.slice(0, 3);
+
+  const safeAttentionData = Array.isArray(attentionData) ? attentionData : [];
+
+  const attentionById = useMemo(() => {
+    const map = {};
+    safeAttentionData.forEach(row => {
+      map[String(row.soldier_id)] = {
+        maxAttention: Number(row.max_attention),
+        entropy: Number(row.entropy),
+      };
+    });
+    return map;
+  }, [safeAttentionData]);
+
+  const attentionThresholds = useMemo(() => {
+    if (!safeAttentionData.length) return { high: 0.8, medium: 0.5 };
+    const scores = safeAttentionData
+      .map(r => Number(r.max_attention))
+      .filter(Number.isFinite)
+      .sort((a, b) => b - a);
+
+    if (!scores.length) return { high: 0.8, medium: 0.5 };
+
+    return {
+      high:   scores[Math.min(2, scores.length - 1)], // top 3 → high
+      medium: scores[Math.min(5, scores.length - 1)], // top 4-6 → medium
+    };
+  }, [safeAttentionData]);
+
+  function getAttentionLevel(soldierId, attentionById, thresholds) {
+    const entry = attentionById[String(soldierId)];
+    if (!entry) return 'none';
+    const score = entry.maxAttention;
+    if (score >= thresholds.high)   return 'high';
+    if (score >= thresholds.medium) return 'medium';
+    return 'low';
+  }
+
+  const HALO = {
+    high:   { r: 22, fill: '#ef4444', opacity: 0.20 }, // red   – won't clash with markers
+    medium: { r: 16, fill: '#f97316', opacity: 0.15 }, // orange
+    low:    { r: 10, fill: '#3b82f6', opacity: 0.12 }, // blue  – distinct from green stable markers
+  };
 
   const zoomMap = (factor) => {
     setViewBox((current) => {
@@ -280,6 +323,27 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
           <text x={mapObjects.uav.x} y={mapObjects.uav.y + 33} textAnchor="middle" className="map-label uav-label">{mapObjects.uav.label}</text>
         </g>
 
+        {/* ATTENTION HALOS – rendered before markers so they sit behind */}
+        {visibleSoldiers.map((soldier) => {
+          const sx = soldier.x;
+          const sy = MAP_SIZE - soldier.y;
+          const level = getAttentionLevel(soldier.id, attentionById, attentionThresholds);
+          
+          if (level === 'none') return null;
+          
+          const halo = HALO[level];
+          return (
+            <circle
+              key={`halo-${soldier.id}`}
+              cx={sx}
+              cy={sy}
+              r={halo.r}
+              fill={halo.fill}
+              opacity={halo.opacity}
+            />
+          );
+        })}
+
         {visibleSoldiers.map((soldier) => {
           const topRank = topThree.findIndex((target) => target.id === soldier.id) + 1;
           const isTopTarget = topRank > 0;
@@ -307,6 +371,16 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
           </g>
           );
         })}
+
+        <g transform="translate(20, 920)">
+          <text fontSize="11" fill="#64748b" fontWeight="600" letterSpacing="1">ATTENTION</text>
+          <circle cx="8"  cy="18" r="6" fill="#ef4444" opacity="0.6" />
+          <text x="18" y="22" fontSize="10" fill="#64748b">High</text>
+          <circle cx="8"  cy="34" r="6" fill="#f97316" opacity="0.6" />
+          <text x="18" y="38" fontSize="10" fill="#64748b">Medium</text>
+          <circle cx="8"  cy="50" r="6" fill="#3b82f6" opacity="0.6" />
+          <text x="18" y="54" fontSize="10" fill="#64748b">Low</text>
+        </g>
       </svg>
       <div className="map-coordinates">
         <span>Grid 1000 x 1000</span>

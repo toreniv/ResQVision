@@ -95,7 +95,7 @@ function PageHeader({ eyebrow, title, description }) {
   );
 }
 
-function MissionPlan({ riskRanking, setActivePage, setExpandedMap }) {
+function MissionPlan({ riskRanking, attentionStats, setActivePage, setExpandedMap }) {
   const [variant, setVariant] = useState(false);
   const mission = variant ? missionVariant : missionBase;
   const liveSoldiers = riskRanking ?? topTargets;
@@ -163,7 +163,7 @@ function MissionPlan({ riskRanking, setActivePage, setExpandedMap }) {
               Expand Map
             </button>
           </div>
-          <TacticalMap planning showArrows soldiers={liveSoldiers} />
+          <TacticalMap planning showArrows soldiers={liveSoldiers} attentionData={attentionStats ?? []} />
         </section>
 
         <aside className="mission-briefing-stack">
@@ -247,7 +247,7 @@ function MissionPlan({ riskRanking, setActivePage, setExpandedMap }) {
   );
 }
 
-function TacticalCommand({ riskRanking, setExpandedMap }) {
+function TacticalCommand({ riskRanking, attentionStats, setExpandedMap }) {
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const liveSoldiers = riskRanking ?? topTargets;
   const criticalCount = liveSoldiers.filter((target) => target.category === 'critical').length;
@@ -313,7 +313,7 @@ function TacticalCommand({ riskRanking, setExpandedMap }) {
               Expand Map
             </button>
           </div>
-          <TacticalMap planning showArrows soldiers={liveSoldiers} />
+          <TacticalMap planning showArrows soldiers={liveSoldiers} attentionData={attentionStats ?? []} />
         </section>
 
         <aside className="tc-side-panel">
@@ -595,8 +595,8 @@ export default function App() {
   }, [expandedMap]);
 
   const page = {
-    mission: <MissionPlan riskRanking={cudaData.riskRanking} setActivePage={setActivePage} setExpandedMap={setExpandedMap} />,
-    command: <TacticalCommand riskRanking={cudaData.riskRanking} setExpandedMap={setExpandedMap} />,
+    mission: <MissionPlan riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} setActivePage={setActivePage} setExpandedMap={setExpandedMap} />,
+    command: <TacticalCommand riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} setExpandedMap={setExpandedMap} />,
     analytics: <Analytics benchmarks={cudaData.benchmarks} attentionStats={cudaData.attentionStats} />,
     architecture: <SystemArchitecture />
   }[activePage];
