@@ -1112,6 +1112,21 @@ main {
   font-size: 0;
 }
 
+.yolo-fusion-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 5;
+  padding: 5px 9px;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #166534;
+  background: rgba(240, 253, 244, 0.94);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
 .map-help-text::after {
   content: "Wheel to zoom \00b7 drag to pan \00b7 0 reset";
   color: #64748b;
