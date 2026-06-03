@@ -247,6 +247,63 @@ function MissionPlan({ riskRanking, attentionStats, setActivePage, setExpandedMa
   );
 }
 
+function deriveRecommendedActions(targets) {
+  if (!targets || targets.length === 0) return [];
+
+  const critical = targets.filter(t => t.category === 'critical');
+  const urgent   = targets.filter(t => t.category === 'urgent');
+  const top      = targets[0];
+  const second   = targets[1];
+
+  const actions = [];
+
+  // Action 1 – always present
+  actions.push({
+    priority: 1,
+    title: `Evacuate Soldier ${top.id}`,
+    reason: `Risk ${(top.risk * 100).toFixed(1)} · HR ${top.hr} bpm · SpO2 ${top.spo2}%`,
+    level: 'critical',
+  });
+
+  // Action 2 – trauma team if 2+ critical, otherwise stabilize second
+  if (critical.length >= 2) {
+    actions.push({
+      priority: 2,
+      title: 'Dispatch Trauma Team Bravo',
+      reason: `${critical.length} critical casualties in sector`,
+      level: 'critical',
+    });
+  } else if (second) {
+    actions.push({
+      priority: 2,
+      title: `Stabilize Soldier ${second.id}`,
+      reason: `Risk ${(second.risk * 100).toFixed(1)} · monitor vitals`,
+      level: second.category,
+    });
+  }
+
+  // Action 3 – UAV routing always present
+  actions.push({
+    priority: 3,
+    title: 'Route UAV-1 to Casualty Cluster',
+    reason: `Top ${Math.min(3, targets.length)} targets within operational range`,
+    level: 'urgent',
+  });
+
+  // Action 4 – highest urgent non-critical, or 4th soldier
+  const monitorTarget = urgent[0] ?? targets[3];
+  if (monitorTarget) {
+    actions.push({
+      priority: 4,
+      title: `Monitor Soldier ${monitorTarget.id}`,
+      reason: `HR ${monitorTarget.hr} bpm · SpO2 ${monitorTarget.spo2}% · trend watch`,
+      level: 'stable',
+    });
+  }
+
+  return actions;
+}
+
 function TacticalCommand({ riskRanking, attentionStats, setExpandedMap }) {
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const liveSoldiers = riskRanking ?? topTargets;
@@ -254,6 +311,7 @@ function TacticalCommand({ riskRanking, attentionStats, setExpandedMap }) {
   const urgentCount = liveSoldiers.filter((target) => target.category === 'urgent').length;
   const stableCount = Math.max(0, missionBase.soldierCount - criticalCount - urgentCount);
   const visibleTargets = liveSoldiers.slice(0, 5);
+  const recommendedActions = deriveRecommendedActions(visibleTargets);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
@@ -341,6 +399,22 @@ function TacticalCommand({ riskRanking, attentionStats, setExpandedMap }) {
                   </div>
                 </div>
               </article>
+            ))}
+          </div>
+
+          <div className="recommended-actions">
+            <div className="recommended-actions-title">
+              <ShieldCheck size={14} />
+              <span>Recommended Actions</span>
+            </div>
+            {recommendedActions.map(action => (
+              <div className={`action-row action-${action.level}`} key={action.priority}>
+                <div className="action-priority">{action.priority}</div>
+                <div className="action-body">
+                  <strong>{action.title}</strong>
+                  <span>{action.reason}</span>
+                </div>
+              </div>
             ))}
           </div>
 
