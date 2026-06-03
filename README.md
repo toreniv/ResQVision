@@ -532,11 +532,11 @@ Areas of Interest:
 
 The project generates:
 
-- Attention Heatmaps
-- Battlefield Risk Maps
-- Evacuation Priority Rankings
-- CPU vs GPU Benchmark Reports
-- YOLO Detection Previews with bounding boxes
+* Attention Heatmaps
+* Battlefield Risk Maps
+* Evacuation Priority Rankings
+* CPU vs GPU Benchmark Reports
+* YOLO Detection Previews with bounding boxes
 
 Example output files:
 
@@ -548,21 +548,14 @@ attention_heatmap.csv
 ```
 
 These outputs are used to evaluate both computational performance and battlefield decision-support quality.
-```
 
 ---
 
-
-
-
-***
----
 ## YOLO Detection Preview
 
 ![YOLO detection preview](docs/images/yolo_detection_preview.jpg)
 
 ---
-
 
 
 
