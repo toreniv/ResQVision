@@ -550,5 +550,15 @@ attention_heatmap.csv
 These outputs are used to evaluate both computational performance and battlefield decision-support quality.
 ```
 
+---
+
+## YOLO Detection Preview
+
+![YOLO detection preview](docs/images/yolo_detection_preview.jpg)
+
+---
+
+
+
 ***
 
