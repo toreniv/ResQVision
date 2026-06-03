@@ -1,3 +1,4 @@
+import { useRef, useState } from 'react';
 import { mapObjects, soldiers } from '../data.js';
 
 const colors = {
@@ -10,26 +11,173 @@ function toPercent(value) {
   return `${value / 10}%`;
 }
 
+const MAP_SIZE = 1000;
+const MIN_VIEW_SIZE = 300;
+const MAX_VIEW_SIZE = 1000;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function clampViewBox(nextViewBox) {
+  const w = clamp(nextViewBox.w, MIN_VIEW_SIZE, MAX_VIEW_SIZE);
+  const h = clamp(nextViewBox.h, MIN_VIEW_SIZE, MAX_VIEW_SIZE);
+  return {
+    x: clamp(nextViewBox.x, 0, MAP_SIZE - w),
+    y: clamp(nextViewBox.y, 0, MAP_SIZE - h),
+    w,
+    h
+  };
+}
+
 export default function TacticalMap({ planning = false, showArrows = false }) {
+  const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: MAP_SIZE, h: MAP_SIZE });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef(null);
+  const mapRef = useRef(null);
+  const svgRef = useRef(null);
   const visibleSoldiers = soldiers;
   const topThree = soldiers.slice(0, 3);
 
+  const zoomMap = (factor) => {
+    setViewBox((current) => {
+      const nextW = clamp(current.w * factor, MIN_VIEW_SIZE, MAX_VIEW_SIZE);
+      const nextH = clamp(current.h * factor, MIN_VIEW_SIZE, MAX_VIEW_SIZE);
+      const centerX = current.x + current.w / 2;
+      const centerY = current.y + current.h / 2;
+
+      return clampViewBox({
+        x: centerX - nextW / 2,
+        y: centerY - nextH / 2,
+        w: nextW,
+        h: nextH
+      });
+    });
+  };
+
+  const zoomAtPoint = (clientX, clientY, zoomFactor) => {
+    if (!svgRef.current) {
+      return;
+    }
+
+    setViewBox((current) => {
+      const rect = svgRef.current.getBoundingClientRect();
+      const relativeX = clamp((clientX - rect.left) / rect.width, 0, 1);
+      const relativeY = clamp((clientY - rect.top) / rect.height, 0, 1);
+      const pointX = current.x + relativeX * current.w;
+      const pointY = current.y + relativeY * current.h;
+      const nextW = clamp(current.w * zoomFactor, MIN_VIEW_SIZE, MAX_VIEW_SIZE);
+      const nextH = clamp(current.h * zoomFactor, MIN_VIEW_SIZE, MAX_VIEW_SIZE);
+
+      return clampViewBox({
+        x: pointX - relativeX * nextW,
+        y: pointY - relativeY * nextH,
+        w: nextW,
+        h: nextH
+      });
+    });
+  };
+
+  const resetView = () => {
+    setViewBox({ x: 0, y: 0, w: MAP_SIZE, h: MAP_SIZE });
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === '+' || event.key === '=') {
+      event.preventDefault();
+      zoomMap(0.88);
+    } else if (event.key === '-') {
+      event.preventDefault();
+      zoomMap(1.12);
+    } else if (event.key === '0') {
+      event.preventDefault();
+      resetView();
+    }
+  };
+
+  const handleWheel = (event) => {
+    event.preventDefault();
+    zoomAtPoint(event.clientX, event.clientY, event.deltaY < 0 ? 0.88 : 1.12);
+  };
+
+  const handlePointerDown = (event) => {
+    if (event.target.closest('button')) {
+      return;
+    }
+
+    panStartRef.current = {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      viewBox
+    };
+    setIsPanning(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event) => {
+    if (!panStartRef.current || !svgRef.current) {
+      return;
+    }
+
+    const rect = svgRef.current.getBoundingClientRect();
+    const start = panStartRef.current;
+    const deltaX = event.clientX - start.clientX;
+    const deltaY = event.clientY - start.clientY;
+    const unitsPerPixelX = start.viewBox.w / rect.width;
+    const unitsPerPixelY = start.viewBox.h / rect.height;
+
+    setViewBox(
+      clampViewBox({
+        ...start.viewBox,
+        x: start.viewBox.x - deltaX * unitsPerPixelX,
+        y: start.viewBox.y - deltaY * unitsPerPixelY
+      })
+    );
+  };
+
+  const endPan = (event) => {
+    panStartRef.current = null;
+    setIsPanning(false);
+
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
   return (
-    <div className={`tactical-map ${planning ? 'planning-map' : ''}`} aria-label="ResQVision tactical grid">
-      <svg viewBox="0 0 1000 1000" preserveAspectRatio="xMidYMid slice" role="img">
+    <div
+      ref={mapRef}
+      className={`tactical-map ${planning ? 'planning-map' : ''} ${isPanning ? 'is-panning' : ''}`}
+      aria-label="ResQVision tactical grid"
+      tabIndex={0}
+      onKeyDown={handleKeyDown}
+      onWheel={handleWheel}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endPan}
+      onPointerCancel={endPan}
+      onPointerLeave={endPan}
+    >
+      <p className="map-help-text">Ctrl + wheel / Ctrl +/- to zoom · drag to pan</p>
+      <div className="map-zoom-controls" aria-label="Map zoom controls">
+        <button type="button" onClick={() => zoomMap(0.88)}>+</button>
+        <button type="button" onClick={() => zoomMap(1.12)}>-</button>
+        <button type="button" onClick={resetView}>Reset</button>
+      </div>
+      <svg ref={svgRef} viewBox={`${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`} preserveAspectRatio="xMidYMid meet" role="img">
         <defs>
           <pattern id={planning ? 'grid-plan' : 'grid-live'} width="50" height="50" patternUnits="userSpaceOnUse">
-            <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#c7d9ee" strokeWidth="1" />
+            <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#dce9f6" strokeWidth="0.7" />
           </pattern>
-          <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
-            <path d="M0,0 L0,6 L9,3 z" fill="#2563eb" />
+          <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#3b82f6" />
           </marker>
           <filter id="terrain-blur">
             <feGaussianBlur stdDeviation="3" />
           </filter>
         </defs>
         <rect width="1000" height="1000" fill="#f8fbff" />
-        <g className="terrain-layer" opacity="0.52">
+        <g className="terrain-layer" opacity="0.2">
           <path d="M40 88 C170 40 240 110 338 76 S520 42 650 88 820 94 965 52 L1000 0 L0 0 Z" fill="#f5f1e8" />
           <path d="M65 785 C190 736 300 820 420 760 S650 710 790 780 922 842 1000 792 L1000 1000 L0 1000 Z" fill="#f3efe4" />
           <path d="M42 612 C148 520 245 590 336 548 S512 442 642 510 782 562 940 490" fill="none" stroke="#c8e4ef" strokeWidth="15" opacity="0.42" filter="url(#terrain-blur)" />
@@ -65,14 +213,14 @@ export default function TacticalMap({ planning = false, showArrows = false }) {
             <circle
               cx={zone.x}
               cy={zone.y}
-              r={zone.size / 2}
+              r={zone.size / 5.4}
               fill={zone.level === 'critical' ? '#fee2e2' : '#ffedd5'}
               stroke={zone.level === 'critical' ? '#ef4444' : '#fb923c'}
-              strokeWidth="4"
-              strokeDasharray="12 10"
-              opacity="0.8"
+              strokeWidth="1.5"
+              strokeDasharray="8 10"
+              opacity="0.34"
             />
-            <text x={zone.x} y={zone.y + zone.size / 2 + 30} textAnchor="middle" className="map-label risk-label">
+            <text x={zone.x} y={zone.y + zone.size / 5.4 + 16} textAnchor="middle" className="map-label risk-label">
               {zone.level.toUpperCase()} RISK
             </text>
           </g>
@@ -80,32 +228,32 @@ export default function TacticalMap({ planning = false, showArrows = false }) {
 
         {mapObjects.evacZones.map((zone) => (
           <g key={zone.label} className="tactical-marker evac-marker">
-            <rect x={zone.x - 52} y={zone.y - 36} width="104" height="72" rx="10" fill="#dcfce7" stroke="#16a34a" strokeWidth="5" />
-            <rect x={zone.x - 8} y={zone.y - 24} width="16" height="48" fill="#16a34a" rx="2" />
-            <rect x={zone.x - 24} y={zone.y - 8} width="48" height="16" fill="#16a34a" rx="2" />
-            <text x={zone.x} y={zone.y + 62} textAnchor="middle" className="map-label">{zone.label}</text>
+            <rect x={zone.x - 22} y={zone.y - 15} width="44" height="30" rx="5" fill="#ecfdf5" stroke="#22c55e" strokeWidth="2" />
+            <rect x={zone.x - 3.5} y={zone.y - 10} width="7" height="20" fill="#16a34a" rx="1.5" />
+            <rect x={zone.x - 10} y={zone.y - 3.5} width="20" height="7" fill="#16a34a" rx="1.5" />
+            <text x={zone.x} y={zone.y + 28} textAnchor="middle" className="map-label evac-label">{zone.label}</text>
           </g>
         ))}
 
         {mapObjects.relays.map((relay) => (
           <g key={relay.label} className="tactical-marker relay-marker">
             <polygon
-              points={`${relay.x},${relay.y - 28} ${relay.x + 25},${relay.y - 14} ${relay.x + 25},${relay.y + 14} ${relay.x},${relay.y + 28} ${relay.x - 25},${relay.y + 14} ${relay.x - 25},${relay.y - 14}`}
-              fill="#dbeafe"
-              stroke="#2563eb"
-              strokeWidth="5"
+              points={`${relay.x},${relay.y - 10} ${relay.x + 10},${relay.y - 5} ${relay.x + 10},${relay.y + 5} ${relay.x},${relay.y + 10} ${relay.x - 10},${relay.y + 5} ${relay.x - 10},${relay.y - 5}`}
+              fill="#eff6ff"
+              stroke="#3b82f6"
+              strokeWidth="1.6"
             />
-            <path d={`M ${relay.x - 16} ${relay.y + 8} Q ${relay.x} ${relay.y - 18} ${relay.x + 16} ${relay.y + 8}`} fill="none" stroke="#2563eb" strokeWidth="4" />
-            <circle cx={relay.x} cy={relay.y + 9} r="4" fill="#2563eb" />
-            <text x={relay.x} y={relay.y + 52} textAnchor="middle" className="map-label">{relay.label}</text>
+            <path d={`M ${relay.x - 6} ${relay.y + 3} Q ${relay.x} ${relay.y - 7} ${relay.x + 6} ${relay.y + 3}`} fill="none" stroke="#2563eb" strokeWidth="1.5" />
+            <circle cx={relay.x} cy={relay.y + 3.5} r="2" fill="#2563eb" />
+            <text x={relay.x} y={relay.y + 22} textAnchor="middle" className="map-label relay-label">{relay.label}</text>
           </g>
         ))}
 
         {mapObjects.squads.map((squad) => (
           <g key={squad.label} className="tactical-marker squad-marker">
-            <rect x={squad.x - 48} y={squad.y - 34} width="96" height="68" rx="8" fill="#eef6ff" stroke="#60a5fa" strokeWidth="5" />
-            <path d={`M ${squad.x - 24} ${squad.y - 6} L ${squad.x} ${squad.y + 16} L ${squad.x + 24} ${squad.y - 6}`} fill="none" stroke="#2563eb" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
-            <text x={squad.x} y={squad.y + 58} textAnchor="middle" className="map-label">{squad.label}</text>
+            <rect x={squad.x - 20} y={squad.y - 14} width="40" height="28" rx="5" fill="#f5f9ff" stroke="#93c5fd" strokeWidth="1.8" />
+            <path d={`M ${squad.x - 10} ${squad.y - 2} L ${squad.x} ${squad.y + 7} L ${squad.x + 10} ${squad.y - 2}`} fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            <text x={squad.x} y={squad.y + 25} textAnchor="middle" className="map-label squad-label">{squad.label}</text>
           </g>
         ))}
 
@@ -117,19 +265,19 @@ export default function TacticalMap({ planning = false, showArrows = false }) {
                 y1={mapObjects.uav.y}
                 x2={target.x}
                 y2={target.y}
-                stroke="#2563eb"
-              strokeWidth="3"
-              strokeDasharray="14 12"
+                stroke="#3b82f6"
+              strokeWidth="1.4"
+              strokeDasharray="8 12"
               markerEnd="url(#arrow)"
-              opacity="0.62"
+              opacity="0.28"
             />
           ))
           : null}
 
         <g className="tactical-marker uav-marker">
-          <path d={`M ${mapObjects.uav.x} ${mapObjects.uav.y - 46} L ${mapObjects.uav.x + 54} ${mapObjects.uav.y + 42} L ${mapObjects.uav.x} ${mapObjects.uav.y + 22} L ${mapObjects.uav.x - 54} ${mapObjects.uav.y + 42} Z`} fill="#2563eb" stroke="#ffffff" strokeWidth="6" />
-          <path d={`M ${mapObjects.uav.x} ${mapObjects.uav.y - 22} L ${mapObjects.uav.x} ${mapObjects.uav.y + 32}`} stroke="#ffffff" strokeWidth="6" strokeLinecap="round" />
-          <text x={mapObjects.uav.x} y={mapObjects.uav.y + 76} textAnchor="middle" className="map-label">{mapObjects.uav.label}</text>
+          <path d={`M ${mapObjects.uav.x} ${mapObjects.uav.y - 19} L ${mapObjects.uav.x + 23} ${mapObjects.uav.y + 18} L ${mapObjects.uav.x} ${mapObjects.uav.y + 10} L ${mapObjects.uav.x - 23} ${mapObjects.uav.y + 18} Z`} fill="#2563eb" stroke="#ffffff" strokeWidth="2.2" />
+          <path d={`M ${mapObjects.uav.x} ${mapObjects.uav.y - 9} L ${mapObjects.uav.x} ${mapObjects.uav.y + 14}`} stroke="#ffffff" strokeWidth="2.2" strokeLinecap="round" />
+          <text x={mapObjects.uav.x} y={mapObjects.uav.y + 33} textAnchor="middle" className="map-label uav-label">{mapObjects.uav.label}</text>
         </g>
 
         {visibleSoldiers.map((soldier) => {
@@ -140,18 +288,18 @@ export default function TacticalMap({ planning = false, showArrows = false }) {
           <g key={soldier.id} className={`casualty-marker ${isTopTarget ? 'top-casualty' : ''}`}>
             {isTopTarget ? (
               <>
-                <circle cx={soldier.x} cy={soldier.y} r="42" fill={colors[soldier.category]} opacity="0.08" />
-                <circle cx={soldier.x} cy={soldier.y} r="31" fill="none" stroke={colors[soldier.category]} strokeWidth="4" opacity="0.72" />
+                <circle cx={soldier.x} cy={soldier.y} r="17" fill={colors[soldier.category]} opacity="0.05" />
+                <circle cx={soldier.x} cy={soldier.y} r="13.5" fill="none" stroke={colors[soldier.category]} strokeWidth="1.8" opacity="0.5" />
               </>
             ) : null}
-            <circle cx={soldier.x} cy={soldier.y} r={isTopTarget ? 16 : 10} fill={colors[soldier.category]} stroke="#ffffff" strokeWidth={isTopTarget ? 5 : 3} />
+            <circle cx={soldier.x} cy={soldier.y} r={isTopTarget ? 7.5 : 4} fill={colors[soldier.category]} stroke="#ffffff" strokeWidth={isTopTarget ? 2.2 : 1.2} />
             {isTopTarget ? (
               <g>
-                <circle cx={soldier.x + 32} cy={soldier.y - 30} r="17" fill="#ffffff" stroke="#0f2747" strokeWidth="3" />
-                <text x={soldier.x + 32} y={soldier.y - 23} textAnchor="middle" className="map-label rank-label">
+                <circle cx={soldier.x + 15} cy={soldier.y - 15} r="8" fill="#ffffff" stroke="#0f2747" strokeWidth="1.2" />
+                <text x={soldier.x + 15} y={soldier.y - 12} textAnchor="middle" className="map-label rank-label">
                   {topRank}
                 </text>
-                <text x={soldier.x} y={soldier.y - 46} textAnchor="middle" className="map-label casualty-label top-label">{soldier.id}</text>
+                <text x={soldier.x} y={soldier.y - 22} textAnchor="middle" className="map-label casualty-label top-label">{soldier.id}</text>
               </g>
             ) : null}
           </g>
