@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { mapObjects, soldiers } from '../data.js';
+import { mapObjects } from '../data.js';
 
 const colors = {
   critical: '#dc2626',
@@ -30,14 +30,14 @@ function clampViewBox(nextViewBox) {
   };
 }
 
-export default function TacticalMap({ planning = false, showArrows = false }) {
+export default function TacticalMap({ planning = false, showArrows = false, soldiers = [] }) {
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: MAP_SIZE, h: MAP_SIZE });
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef(null);
   const mapRef = useRef(null);
   const svgRef = useRef(null);
-  const visibleSoldiers = soldiers;
-  const topThree = soldiers.slice(0, 3);
+  const visibleSoldiers = soldiers.slice(0, 10);
+  const topThree = visibleSoldiers.slice(0, 3);
 
   const zoomMap = (factor) => {
     setViewBox((current) => {
@@ -264,7 +264,7 @@ export default function TacticalMap({ planning = false, showArrows = false }) {
                 x1={mapObjects.uav.x}
                 y1={mapObjects.uav.y}
                 x2={target.x}
-                y2={target.y}
+                y2={MAP_SIZE - target.y}
                 stroke="#3b82f6"
               strokeWidth="1.4"
               strokeDasharray="8 12"
@@ -283,23 +283,25 @@ export default function TacticalMap({ planning = false, showArrows = false }) {
         {visibleSoldiers.map((soldier) => {
           const topRank = topThree.findIndex((target) => target.id === soldier.id) + 1;
           const isTopTarget = topRank > 0;
+          const sx = soldier.x;
+          const sy = MAP_SIZE - soldier.y;
 
           return (
           <g key={soldier.id} className={`casualty-marker ${isTopTarget ? 'top-casualty' : ''}`}>
             {isTopTarget ? (
               <>
-                <circle cx={soldier.x} cy={soldier.y} r="17" fill={colors[soldier.category]} opacity="0.05" />
-                <circle cx={soldier.x} cy={soldier.y} r="13.5" fill="none" stroke={colors[soldier.category]} strokeWidth="1.8" opacity="0.5" />
+                <circle cx={sx} cy={sy} r="17" fill={colors[soldier.category]} opacity="0.05" />
+                <circle cx={sx} cy={sy} r="13.5" fill="none" stroke={colors[soldier.category]} strokeWidth="1.8" opacity="0.5" />
               </>
             ) : null}
-            <circle cx={soldier.x} cy={soldier.y} r={isTopTarget ? 7.5 : 4} fill={colors[soldier.category]} stroke="#ffffff" strokeWidth={isTopTarget ? 2.2 : 1.2} />
+            <circle cx={sx} cy={sy} r={isTopTarget ? 7.5 : 4} fill={colors[soldier.category]} stroke="#ffffff" strokeWidth={isTopTarget ? 2.2 : 1.2} />
             {isTopTarget ? (
               <g>
-                <circle cx={soldier.x + 15} cy={soldier.y - 15} r="8" fill="#ffffff" stroke="#0f2747" strokeWidth="1.2" />
-                <text x={soldier.x + 15} y={soldier.y - 12} textAnchor="middle" className="map-label rank-label">
+                <circle cx={sx + 15} cy={sy - 15} r="8" fill="#ffffff" stroke="#0f2747" strokeWidth="1.2" />
+                <text x={sx + 15} y={sy - 12} textAnchor="middle" className="map-label rank-label">
                   {topRank}
                 </text>
-                <text x={soldier.x} y={soldier.y - 22} textAnchor="middle" className="map-label casualty-label top-label">{soldier.id}</text>
+                <text x={sx} y={sy - 22} textAnchor="middle" className="map-label casualty-label top-label">{soldier.id}</text>
               </g>
             ) : null}
           </g>

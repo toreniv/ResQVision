@@ -95,11 +95,12 @@ function PageHeader({ eyebrow, title, description }) {
   );
 }
 
-function MissionPlan({ setActivePage, setExpandedMap }) {
+function MissionPlan({ riskRanking, setActivePage, setExpandedMap }) {
   const [variant, setVariant] = useState(false);
   const mission = variant ? missionVariant : missionBase;
-  const criticalCount = topTargets.filter((target) => target.category === 'critical').length;
-  const urgentCount = topTargets.filter((target) => target.category === 'urgent').length;
+  const liveSoldiers = riskRanking ?? topTargets;
+  const criticalCount = liveSoldiers.filter((target) => target.category === 'critical').length;
+  const urgentCount = liveSoldiers.filter((target) => target.category === 'urgent').length;
   const stableCount = Math.max(0, mission.soldierCount - criticalCount - urgentCount);
   const missionChecklist = ['Identify casualties', 'Validate telemetry', 'Prepare corridors', 'Confirm CUDA PASS'];
   const missionTimeline = [
@@ -162,7 +163,7 @@ function MissionPlan({ setActivePage, setExpandedMap }) {
               Expand Map
             </button>
           </div>
-          <TacticalMap planning showArrows />
+          <TacticalMap planning showArrows soldiers={liveSoldiers} />
         </section>
 
         <aside className="mission-briefing-stack">
@@ -248,11 +249,11 @@ function MissionPlan({ setActivePage, setExpandedMap }) {
 
 function TacticalCommand({ riskRanking, setExpandedMap }) {
   const [currentTime, setCurrentTime] = useState(() => new Date());
-  const targetSource = riskRanking ?? topTargets;
-  const criticalCount = targetSource.filter((target) => target.category === 'critical').length;
-  const urgentCount = targetSource.filter((target) => target.category === 'urgent').length;
+  const liveSoldiers = riskRanking ?? topTargets;
+  const criticalCount = liveSoldiers.filter((target) => target.category === 'critical').length;
+  const urgentCount = liveSoldiers.filter((target) => target.category === 'urgent').length;
   const stableCount = Math.max(0, missionBase.soldierCount - criticalCount - urgentCount);
-  const visibleTargets = targetSource.slice(0, 5);
+  const visibleTargets = liveSoldiers.slice(0, 5);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
@@ -312,7 +313,7 @@ function TacticalCommand({ riskRanking, setExpandedMap }) {
               Expand Map
             </button>
           </div>
-          <TacticalMap planning showArrows />
+          <TacticalMap planning showArrows soldiers={liveSoldiers} />
         </section>
 
         <aside className="tc-side-panel">
@@ -543,7 +544,7 @@ export default function App() {
   }, [expandedMap]);
 
   const page = {
-    mission: <MissionPlan setActivePage={setActivePage} setExpandedMap={setExpandedMap} />,
+    mission: <MissionPlan riskRanking={cudaData.riskRanking} setActivePage={setActivePage} setExpandedMap={setExpandedMap} />,
     command: <TacticalCommand riskRanking={cudaData.riskRanking} setExpandedMap={setExpandedMap} />,
     analytics: <Analytics benchmarks={cudaData.benchmarks} attentionStats={cudaData.attentionStats} />,
     architecture: <SystemArchitecture />
