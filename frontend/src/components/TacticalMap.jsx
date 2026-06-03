@@ -30,7 +30,7 @@ function clampViewBox(nextViewBox) {
   };
 }
 
-export default function TacticalMap({ planning = false, showArrows = false, soldiers = [], attentionData = [] }) {
+export default function TacticalMap({ planning = false, showArrows = false, soldiers = [], attentionData = [], fusionMode = null }) {
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: MAP_SIZE, h: MAP_SIZE });
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef(null);
@@ -202,6 +202,7 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
       onPointerLeave={endPan}
     >
       <p className="map-help-text">Ctrl + wheel / Ctrl +/- to zoom · drag to pan</p>
+      {fusionMode === 'YOLO_LIVE' ? <div className="yolo-fusion-badge">YOLO LIVE FUSION</div> : null}
       <div className="map-zoom-controls" aria-label="Map zoom controls">
         <button type="button" onClick={() => zoomMap(0.88)}>+</button>
         <button type="button" onClick={() => zoomMap(1.12)}>-</button>
@@ -307,7 +308,7 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
                 x1={mapObjects.uav.x}
                 y1={mapObjects.uav.y}
                 x2={target.x}
-                y2={MAP_SIZE - target.y}
+                y2={target.source === 'YOLO' ? target.y : MAP_SIZE - target.y}
                 stroke="#3b82f6"
               strokeWidth="1.4"
               strokeDasharray="8 12"
@@ -326,7 +327,7 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
         {/* ATTENTION HALOS – rendered before markers so they sit behind */}
         {visibleSoldiers.map((soldier) => {
           const sx = soldier.x;
-          const sy = MAP_SIZE - soldier.y;
+          const sy = soldier.source === 'YOLO' ? soldier.y : MAP_SIZE - soldier.y;
           const level = getAttentionLevel(soldier.id, attentionById, attentionThresholds);
           
           if (level === 'none') return null;
@@ -348,7 +349,7 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
           const topRank = topThree.findIndex((target) => target.id === soldier.id) + 1;
           const isTopTarget = topRank > 0;
           const sx = soldier.x;
-          const sy = MAP_SIZE - soldier.y;
+          const sy = soldier.source === 'YOLO' ? soldier.y : MAP_SIZE - soldier.y;
 
           return (
           <g key={soldier.id} className={`casualty-marker ${isTopTarget ? 'top-casualty' : ''}`}>

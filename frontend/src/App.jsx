@@ -45,14 +45,20 @@ function useCudaData() {
   const [benchmarks, setBenchmarks] = useState(null);
   const [riskRanking, setRiskRanking] = useState(null);
   const [attentionStats, setAttentionStats] = useState(null);
+  const [fusionMode, setFusionMode] = useState(null);
 
   useEffect(() => {
     loadBenchmarkResults().then((data) => data && setBenchmarks(data));
-    loadRiskRanking().then((data) => data && setRiskRanking(data));
+    loadRiskRanking().then((data) => {
+      if (data) {
+        setFusionMode(data.fusionMode ?? null);
+        setRiskRanking(data);
+      }
+    });
     loadAttentionStats().then((data) => data && setAttentionStats(data));
   }, []);
 
-  return { benchmarks, riskRanking, attentionStats };
+  return { benchmarks, riskRanking, attentionStats, fusionMode };
 }
 
 function Shell({ activePage, setActivePage, children }) {
@@ -97,7 +103,7 @@ function PageHeader({ eyebrow, title, description }) {
   );
 }
 
-function MissionPlan({ riskRanking, attentionStats, setActivePage, setExpandedMap }) {
+function MissionPlan({ riskRanking, attentionStats, fusionMode, setActivePage, setExpandedMap }) {
   const [variant, setVariant] = useState(false);
   const mission = variant ? missionVariant : missionBase;
   const liveSoldiers = riskRanking ?? topTargets;
@@ -165,7 +171,7 @@ function MissionPlan({ riskRanking, attentionStats, setActivePage, setExpandedMa
               Expand Map
             </button>
           </div>
-          <TacticalMap planning showArrows soldiers={liveSoldiers} attentionData={attentionStats ?? []} />
+          <TacticalMap planning showArrows soldiers={liveSoldiers} attentionData={attentionStats ?? []} fusionMode={fusionMode} />
         </section>
 
         <aside className="mission-briefing-stack">
@@ -252,6 +258,15 @@ function MissionPlan({ riskRanking, attentionStats, setActivePage, setExpandedMa
 function deriveRecommendedActions(targets) {
   if (!targets || targets.length === 0) return [];
 
+  if (targets.some(target => target.recommendedAction)) {
+    return targets.slice(0, 4).map((target, index) => ({
+      priority: index + 1,
+      title: target.recommendedAction,
+      reason: `${target.id} - Risk ${(target.risk * 100).toFixed(1)}${target.confidence ? ` - YOLO ${(target.confidence * 100).toFixed(1)}%` : ''}`,
+      level: target.category,
+    }));
+  }
+
   const critical = targets.filter(t => t.category === 'critical');
   const urgent   = targets.filter(t => t.category === 'urgent');
   const top      = targets[0];
@@ -306,7 +321,7 @@ function deriveRecommendedActions(targets) {
   return actions;
 }
 
-function TacticalCommand({ riskRanking, attentionStats, setExpandedMap }) {
+function TacticalCommand({ riskRanking, attentionStats, fusionMode, setExpandedMap }) {
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const liveSoldiers = riskRanking ?? topTargets;
   const criticalCount = liveSoldiers.filter((target) => target.category === 'critical').length;
@@ -373,7 +388,7 @@ function TacticalCommand({ riskRanking, attentionStats, setExpandedMap }) {
               Expand Map
             </button>
           </div>
-          <TacticalMap planning showArrows soldiers={liveSoldiers} attentionData={attentionStats ?? []} />
+          <TacticalMap planning showArrows soldiers={liveSoldiers} attentionData={attentionStats ?? []} fusionMode={fusionMode} />
         </section>
 
         <aside className="tc-side-panel">
@@ -393,8 +408,8 @@ function TacticalCommand({ riskRanking, attentionStats, setExpandedMap }) {
                     <em>{(target.risk * 100).toFixed(1)}</em>
                   </div>
                   <div className="tc-target-vitals">
-                    <span>HR: {target.hr} bpm</span>
-                    <span>SpO2: {target.spo2}%</span>
+                    {target.source === 'YOLO' ? <span>YOLO confidence: {((target.confidence ?? 0) * 100).toFixed(1)}%</span> : <span>HR: {target.hr} bpm</span>}
+                    {target.source === 'YOLO' ? <span>{target.recommendedAction}</span> : <span>SpO2: {target.spo2}%</span>}
                   </div>
                   <div className="tc-target-bar">
                     <i style={{ width: `${Math.round(target.risk * 100)}%` }} />
@@ -797,8 +812,8 @@ export default function App() {
   }, [expandedMap]);
 
   const page = {
-    mission: <MissionPlan riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} setActivePage={setActivePage} setExpandedMap={setExpandedMap} />,
-    command: <TacticalCommand riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} setExpandedMap={setExpandedMap} />,
+    mission: <MissionPlan riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} fusionMode={cudaData.fusionMode} setActivePage={setActivePage} setExpandedMap={setExpandedMap} />,
+    command: <TacticalCommand riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} fusionMode={cudaData.fusionMode} setExpandedMap={setExpandedMap} />,
     analytics: <Analytics benchmarks={cudaData.benchmarks} attentionStats={cudaData.attentionStats} />,
     architecture: <SystemArchitecture />,
     cv: <ComputerVision />
@@ -822,7 +837,7 @@ export default function App() {
               <button onClick={() => setExpandedMap(null)}>Close</button>
             </header>
             <div className="map-modal-body">
-              <TacticalMap planning showArrows />
+              <TacticalMap planning showArrows soldiers={cudaData.riskRanking ?? topTargets} attentionData={cudaData.attentionStats ?? []} fusionMode={cudaData.fusionMode} />
             </div>
           </section>
         </div>

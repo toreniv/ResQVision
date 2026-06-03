@@ -4,6 +4,7 @@ $ProjectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $CheckCuda = Join-Path $ProjectRoot "scripts\check_cuda.ps1"
 $RunLocal = Join-Path $ProjectRoot "scripts\run_cuda_local.ps1"
 $ImportColab = Join-Path $ProjectRoot "scripts\import_colab_outputs.ps1"
+$FuseYolo = Join-Path $ProjectRoot "scripts\fuse_yolo_to_tactical.py"
 
 Write-Host "ResQVision data pipeline"
 Write-Host "------------------------"
@@ -40,6 +41,17 @@ if ($CudaAvailable) {
 if ($CompletedThroughFallback) {
     Write-Host "[OK] Data pipeline completed successfully through Colab fallback."
 }
+
+$ExitBeforeFusion = $PipelineExitCode
+Write-Host ""
+Write-Host "[INFO] Running YOLO tactical fusion."
+python $FuseYolo
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "[OK] Tactical fusion artifact refreshed."
+} else {
+    Write-Host "[WARN] Tactical fusion failed. The frontend will keep using risk ranking or fallback data."
+}
+$PipelineExitCode = $ExitBeforeFusion
 
 Write-Host ""
 Write-Host "Next step:"

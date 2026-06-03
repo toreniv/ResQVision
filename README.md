@@ -185,6 +185,24 @@ Continuously writes `detections.json` and `detection_preview.jpg` from webcam fr
 
 ---
 
+### YOLO Tactical Fusion
+
+```text
+Webcam → YOLO → detections.json → fuse_yolo_to_tactical.py → tactical_fusion.json → dashboard
+```
+
+The fusion layer maps YOLO person detections into the same 0-1000 tactical grid used by Tactical Command. When live detections are available, the dashboard prefers `tactical_fusion.json` for map markers and top evacuation targets. If detections are missing or empty, the fusion script writes a `NO_DATA` artifact and the dashboard falls back to `risk_ranking.json`.
+
+Run manually:
+
+```bash
+python scripts/fuse_yolo_to_tactical.py
+```
+
+`run_data_pipeline.ps1` also refreshes this artifact automatically and does not fail the pipeline if YOLO data is unavailable.
+
+---
+
 ### CUDA
 
 ```bash

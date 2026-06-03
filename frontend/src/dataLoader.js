@@ -23,11 +23,23 @@ function normalizeRiskRow(row, index) {
   const risk = riskRaw > 1 ? riskRaw / 100 : riskRaw;
   const hr = Number(row.heart_rate ?? row.hr ?? row.hr_bpm ?? 0);
   const spo2 = Number(row.spo2 ?? row.SpO2 ?? row.spo2_percent ?? 0);
-  const category = (row.category ?? row.Category ?? 'stable').toLowerCase();
-  const x = Number(row.x_position ?? row.x ?? 500);
-  const y = Number(row.y_position ?? row.y ?? 500);
+  const category = (row.category ?? row.Category ?? (risk >= 0.8 ? 'critical' : risk >= 0.6 ? 'urgent' : 'stable')).toLowerCase();
+  const x = Number(row.x_map ?? row.x_position ?? row.x ?? 500);
+  const y = Number(row.y_map ?? row.y_position ?? row.y ?? 500);
   if (!id || risk === 0) return null;
-  return { rank: index + 1, id, risk, hr, spo2, category, x, y };
+  return {
+    rank: row.priority ?? row.rank ?? index + 1,
+    id,
+    risk,
+    hr,
+    spo2,
+    category,
+    x,
+    y,
+    confidence: row.confidence,
+    recommendedAction: row.recommended_action ?? row.recommendedAction,
+    source: row.source,
+  };
 }
 
 // NOTE: correctness fields may live in benchmark_results, not attention_stats.
@@ -46,7 +58,8 @@ async function safeFetch(url) {
     const res = await fetch(url);
     if (!res.ok) return null;
     const data = await res.json();
-    console.log(`[CUDA JSON] loaded ${url}: ${data.length} rows, columns:`, Object.keys(data[0] ?? {}));
+    const rows = Array.isArray(data) ? data : data?.targets;
+    console.log(`[CUDA JSON] loaded ${url}: ${rows?.length ?? 0} rows, columns:`, Object.keys(rows?.[0] ?? data ?? {}));
     return data;
   } catch (e) {
     console.warn(`[CUDA JSON] failed to load ${url}:`, e.message);
@@ -61,9 +74,18 @@ export async function loadBenchmarkResults() {
 }
 
 export async function loadRiskRanking() {
+  const fusion = await safeFetch('/data/tactical_fusion.json');
+  if (fusion?.fusion_mode === 'YOLO_LIVE' && Array.isArray(fusion.targets) && fusion.targets.length) {
+    const targets = fusion.targets.map(normalizeRiskRow).filter(Boolean);
+    targets.fusionMode = 'YOLO_LIVE';
+    return targets;
+  }
+
   const raw = await safeFetch('/data/risk_ranking.json');
   if (!raw) return null;
-  return raw.map(normalizeRiskRow).filter(Boolean);
+  const targets = raw.map(normalizeRiskRow).filter(Boolean);
+  targets.fusionMode = fusion?.fusion_mode ?? null;
+  return targets;
 }
 
 export async function loadAttentionStats() {
