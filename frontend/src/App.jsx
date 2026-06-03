@@ -20,6 +20,7 @@ import {
   readinessCards,
   topTargets
 } from './data.js';
+import { loadAttentionStats, loadBenchmarkResults, loadRiskRanking } from './dataLoader.js';
 import TacticalMap from './components/TacticalMap.jsx';
 import {
   Bar,
@@ -37,6 +38,20 @@ const navItems = [
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'architecture', label: 'System Architecture', icon: Network }
 ];
+
+function useCudaData() {
+  const [benchmarks, setBenchmarks] = useState(null);
+  const [riskRanking, setRiskRanking] = useState(null);
+  const [attentionStats, setAttentionStats] = useState(null);
+
+  useEffect(() => {
+    loadBenchmarkResults().then((data) => data && setBenchmarks(data));
+    loadRiskRanking().then((data) => data && setRiskRanking(data));
+    loadAttentionStats().then((data) => data && setAttentionStats(data));
+  }, []);
+
+  return { benchmarks, riskRanking, attentionStats };
+}
 
 function Shell({ activePage, setActivePage, children }) {
   return (
@@ -231,12 +246,13 @@ function MissionPlan({ setActivePage, setExpandedMap }) {
   );
 }
 
-function TacticalCommand({ setExpandedMap }) {
+function TacticalCommand({ riskRanking, setExpandedMap }) {
   const [currentTime, setCurrentTime] = useState(() => new Date());
-  const criticalCount = topTargets.filter((target) => target.category === 'critical').length;
-  const urgentCount = topTargets.filter((target) => target.category === 'urgent').length;
+  const targetSource = riskRanking ?? topTargets;
+  const criticalCount = targetSource.filter((target) => target.category === 'critical').length;
+  const urgentCount = targetSource.filter((target) => target.category === 'urgent').length;
   const stableCount = Math.max(0, missionBase.soldierCount - criticalCount - urgentCount);
-  const visibleTargets = topTargets.slice(0, 5);
+  const visibleTargets = targetSource.slice(0, 5);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
@@ -348,11 +364,20 @@ function TacticalCommand({ setExpandedMap }) {
   );
 }
 
-function Analytics() {
+function Analytics({ benchmarks, attentionStats }) {
   const chartData = useMemo(
-    () => benchmarkRows.map((row) => ({ soldiers: row.soldiers, CPU: row.cpu, GPU: row.gpu, speedup: row.speedup })),
-    []
+    () => {
+      const source = benchmarks ?? benchmarkRows;
+      return source.map((row) => ({
+        soldiers: row.soldiers,
+        CPU: row.cpu ?? row.CPU,
+        GPU: row.gpu ?? row.GPU,
+        speedup: row.speedup
+      }));
+    },
+    [benchmarks]
   );
+  const metrics = attentionStats ?? correctnessMetrics;
 
   return (
     <section>
@@ -427,21 +452,21 @@ function Analytics() {
           <h3>Correctness Metrics</h3>
           <div className="status-row">
             <span>Status</span>
-            <strong className="pass">{correctnessMetrics.status}</strong>
+            <strong className="pass">{metrics.status}</strong>
           </div>
           <div className="status-row">
             <span>Top-10 overlap</span>
-            <strong>{correctnessMetrics.top10Overlap}</strong>
+            <strong>{metrics.top10Overlap}</strong>
           </div>
           <div className="status-row">
             <span>Max abs error</span>
-            <strong>{correctnessMetrics.maxAbsError}</strong>
+            <strong>{metrics.maxAbsError}</strong>
           </div>
           <div className="status-row">
             <span>Mean abs error</span>
-            <strong>{correctnessMetrics.meanAbsError}</strong>
+            <strong>{metrics.meanAbsError}</strong>
           </div>
-          <p>{correctnessMetrics.attentionEntropy}</p>
+          <p>{metrics.attentionEntropy ?? correctnessMetrics.attentionEntropy}</p>
           <p>GPU acceleration enables ResQVision to scale attention-based risk assessment toward larger battlefield scenarios while preserving CPU/GPU correctness validation.</p>
         </section>
       </div>
@@ -500,6 +525,7 @@ function SystemArchitecture() {
 export default function App() {
   const [activePage, setActivePage] = useState('mission');
   const [expandedMap, setExpandedMap] = useState(null);
+  const cudaData = useCudaData();
 
   useEffect(() => {
     if (!expandedMap) {
@@ -518,8 +544,8 @@ export default function App() {
 
   const page = {
     mission: <MissionPlan setActivePage={setActivePage} setExpandedMap={setExpandedMap} />,
-    command: <TacticalCommand setExpandedMap={setExpandedMap} />,
-    analytics: <Analytics />,
+    command: <TacticalCommand riskRanking={cudaData.riskRanking} setExpandedMap={setExpandedMap} />,
+    analytics: <Analytics benchmarks={cudaData.benchmarks} attentionStats={cudaData.attentionStats} />,
     architecture: <SystemArchitecture />
   }[activePage];
 
