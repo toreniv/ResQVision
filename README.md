@@ -552,6 +552,11 @@ These outputs are used to evaluate both computational performance and battlefiel
 
 ---
 
+
+
+
+***
+---
 ## YOLO Detection Preview
 
 ![YOLO detection preview](docs/images/yolo_detection_preview.jpg)
@@ -560,5 +565,5 @@ These outputs are used to evaluate both computational performance and battlefiel
 
 
 
-***
+
 
