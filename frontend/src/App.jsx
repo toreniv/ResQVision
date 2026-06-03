@@ -663,31 +663,40 @@ function confidenceClass(c) {
 }
 
 function ComputerVision() {
-  const [detections, setDetections] = useState(null);
-  const [source, setSource] = useState('loading');
+  const [detections, setDetections] = useState(CV_MOCK);
+  const [hasLiveData, setHasLiveData] = useState(false);
+  const [previewVersion, setPreviewVersion] = useState(Date.now());
   const [previewAvailable, setPreviewAvailable] = useState(true);
 
-  // Cache-busting so Vite/browser picks up a freshly-written JPG
-  const previewSrc = `/data/detection_preview.jpg?t=${Date.now()}`;
-
   useEffect(() => {
-    fetch('/data/detections.json')
-      .then((res) => {
-        if (!res.ok) throw new Error('not found');
-        return res.json();
-      })
-      .then((data) => {
-        console.log(`[ResQVision] Loaded ${data.length} detections from detections.json`);
-        setDetections(data);
-        setSource('live');
-      })
-      .catch(() => {
-        setDetections(CV_MOCK);
-        setSource('mock');
-      });
-  }, []);
+    let liveLoaded = false;
 
-  const list = detections ?? CV_MOCK;
+    const loadLiveDetections = () => {
+      fetch('/data/detections.json?t=' + Date.now())
+        .then((r) => {
+          if (!r.ok) throw new Error('detections missing');
+          return r.json();
+        })
+        .then((data) => {
+          setDetections(Array.isArray(data) ? data : CV_MOCK);
+          setHasLiveData(true);
+          liveLoaded = true;
+          setPreviewVersion(Date.now());
+          setPreviewAvailable(true);
+        })
+        .catch(() => {
+          if (!liveLoaded) {
+            setDetections(CV_MOCK);
+            setHasLiveData(false);
+          }
+          // if liveLoaded is true, keep previous detections – no flicker
+        });
+    };
+
+    loadLiveDetections();
+    const interval = setInterval(loadLiveDetections, 1000);
+    return () => clearInterval(interval);
+  }, []); // empty deps – interval created once, liveLoaded via closure
 
   return (
     <section className="cv-page">
@@ -700,9 +709,10 @@ function ComputerVision() {
       <div className="cv-note">
         <Eye size={15} />
         <span>YOLO inference is generated externally by Python/Colab. This page only visualizes detection artifacts.</span>
-        <span className={`cv-source-badge ${source === 'live' ? 'cv-badge-live' : source === 'mock' ? 'cv-badge-mock' : 'cv-badge-loading'}`}>
-          {source === 'live' ? 'Live JSON' : source === 'mock' ? 'Mock data' : 'Loading…'}
+        <span className={`cv-source-badge ${hasLiveData ? 'cv-badge-live' : 'cv-badge-mock'}`}>
+          {hasLiveData ? 'Live JSON' : 'Mock data'}
         </span>
+        {hasLiveData && <span className="cv-live-badge">LIVE</span>}
       </div>
 
       <div className="cv-layout">
@@ -713,9 +723,9 @@ function ComputerVision() {
           </div>
           {previewAvailable ? (
             <img
-              src={previewSrc}
-              alt="YOLO detection preview"
-              className="cv-preview-image"
+              src={`/data/detection_preview.jpg?t=${previewVersion}`}
+              alt="Detection Preview"
+              className="cv-preview-img"
               onError={() => setPreviewAvailable(false)}
             />
           ) : (
@@ -730,10 +740,10 @@ function ComputerVision() {
         <section className="panel cv-detections-panel">
           <div className="panel-title">
             <h3>Detections</h3>
-            <span>{list.length} object{list.length !== 1 ? 's' : ''}</span>
+            <span>{detections.length} object{detections.length !== 1 ? 's' : ''}</span>
           </div>
           <div className="cv-detection-list">
-            {list.map((det) => (
+            {detections.map((det) => (
               <article key={det.id} className="cv-detection-row">
                 <div className="cv-det-id">#{det.id}</div>
                 <div className="cv-det-body">

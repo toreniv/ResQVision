@@ -22,6 +22,84 @@ ResQVision now includes:
 The dashboard consumes CUDA-generated outputs and visualizes battlefield decision-support information.
 
 ---
+
+## Quick Start
+
+> Run from the **project root** (`ResQVision/`) for all commands below.
+
+### One-time setup (Windows)
+
+```powershell
+.\setup.ps1
+```
+
+This creates a Python virtual environment, installs all dependencies from `requirements.txt`, and runs `npm install` inside `frontend/`.
+
+---
+
+### Frontend
+
+```bash
+cd frontend
+npm install      # skip if setup.ps1 was already run
+npm run dev
+```
+
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+---
+
+### YOLO Demo
+
+```bash
+# Activate the virtual environment first
+venv\Scripts\activate
+
+python scripts/yolo_detect.py --image scripts/sample_input.png
+```
+
+Outputs written to `frontend/public/data/`:
+
+| File | Description |
+|---|---|
+| `detections.json` | Per-person detection results |
+| `detection_preview.jpg` | Annotated frame with bounding boxes |
+
+The Computer Vision page in the dashboard picks these up automatically.
+
+---
+
+### CUDA
+
+```bash
+nvcc -O2 resqvision.cu -o resqvision
+./resqvision
+```
+
+Then export results to JSON:
+
+```bash
+python scripts/csv_to_json.py
+```
+
+---
+
+### JSON Integration
+
+After running the CUDA binary or YOLO script, generated JSON files live in:
+
+```
+frontend/public/data/
+├── benchmark_results.json
+├── risk_ranking.json
+├── attention_stats.json
+└── detections.json
+```
+
+The dashboard loads these files on startup. If any file is missing or malformed, it falls back to built-in mock data automatically — so the demo always works.
+
+---
+
 ## Project Motivation
 
 Modern battlefield environments generate large volumes of information from sensors, wearable devices, drones, and communication systems.

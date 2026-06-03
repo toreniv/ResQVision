@@ -1,0 +1,13 @@
+# ResQVision – Python dependencies
+# Install with: pip install -r requirements.txt
+# Or inside a virtual environment: python -m venv venv && venv\Scripts\activate && pip install -r requirements.txt
+
+# Computer vision & YOLO inference
+ultralytics>=8.0,<9.0
+opencv-python>=4.8,<5.0
+
+# Numerical computing (pulled by ultralytics, but declared explicitly)
+numpy>=1.24,<2.0
+
+# Data processing (CSV → JSON pipeline, Colab notebook)
+pandas>=2.0,<3.0
