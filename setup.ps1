@@ -1,4 +1,4 @@
-# ResQVision – Windows bootstrap script
+# ResQVision - Windows bootstrap script
 # Run from project root: .\setup.ps1
 # Idempotent: safe to run multiple times.
 
@@ -8,16 +8,28 @@ Write-Host ""
 Write-Host "=== ResQVision Setup ===" -ForegroundColor Cyan
 Write-Host ""
 
+$pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+$pythonArgs = @()
+
+if (-not $pythonCommand) {
+    $pythonCommand = Get-Command py -ErrorAction SilentlyContinue
+    $pythonArgs = @("-3")
+}
+
+if (-not $pythonCommand) {
+    throw "Python 3 was not found. Install Python 3 and enable 'Add python.exe to PATH', then rerun .\setup.ps1."
+}
+
 # ---------------------------------------------------------------------------
 # 1. Python virtual environment
 # ---------------------------------------------------------------------------
 $venvDir = "venv"
 
 if (Test-Path "$venvDir\Scripts\Activate.ps1") {
-    Write-Host "[OK] Virtual environment already exists – skipping creation." -ForegroundColor Green
+    Write-Host "[OK] Virtual environment already exists - skipping creation." -ForegroundColor Green
 } else {
     Write-Host "[1/5] Creating Python virtual environment in .\venv ..." -ForegroundColor Yellow
-    python -m venv $venvDir
+    & $pythonCommand.Source @pythonArgs -m venv $venvDir
     Write-Host "[OK] Virtual environment created." -ForegroundColor Green
 }
 
@@ -32,11 +44,11 @@ Write-Host "[OK] Virtual environment active." -ForegroundColor Green
 # 3. Install Python dependencies
 # ---------------------------------------------------------------------------
 Write-Host "[3/5] Installing Python dependencies from requirements.txt ..." -ForegroundColor Yellow
-pip install -r requirements.txt --quiet
+& ".\$venvDir\Scripts\python.exe" -m pip install -r requirements.txt --quiet
 Write-Host "[OK] Python dependencies installed." -ForegroundColor Green
 
 # ---------------------------------------------------------------------------
-# 4 & 5. Frontend – npm install
+# 4 & 5. Frontend - npm install
 # ---------------------------------------------------------------------------
 Write-Host "[4/5] Installing frontend Node dependencies ..." -ForegroundColor Yellow
 Push-Location frontend

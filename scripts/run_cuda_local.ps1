@@ -25,7 +25,7 @@ if (-not (Test-Path $CudaSource)) {
 }
 
 Write-Host "[INFO] Compiling CUDA source with nvcc..."
-& nvcc -O2 $CudaSource -o $ExePath
+& nvcc -O2 -arch=sm_89 $CudaSource -o $ExePath
 if ($LASTEXITCODE -ne 0) {
     throw "nvcc compilation failed."
 }
@@ -49,11 +49,28 @@ foreach ($FileName in $RequiredCsv) {
 }
 
 $VenvPython = Join-Path $ProjectRoot "venv\Scripts\python.exe"
+$PathPython = Get-Command python -ErrorAction SilentlyContinue
+$PathPy = Get-Command py -ErrorAction SilentlyContinue
+$PlatformIoPython = Join-Path "C:\Users\$env:USERNAME" ".platformio\python3\python.exe"
+
 if (Test-Path $VenvPython) {
     $Python = $VenvPython
+} elseif ($PathPython) {
+    $Python = $PathPython.Source
+} elseif ($PathPy) {
+    $Python = $PathPy.Source
+} elseif (Test-Path $PlatformIoPython) {
+    $Python = $PlatformIoPython
 } else {
-    $Python = "python"
+    throw @"
+Python 3.10+ is required to convert CUDA CSV outputs to JSON.
+
+Install Python and enable "Add python.exe to PATH".
+Then rerun .\setup.ps1 and .\scripts\run_cuda_local.ps1.
+"@
 }
+
+Write-Host "[INFO] Using Python executable: $Python"
 
 Write-Host "[INFO] Converting CSV outputs to JSON..."
 Push-Location $ProjectRoot
