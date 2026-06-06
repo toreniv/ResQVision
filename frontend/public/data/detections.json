@@ -2,45 +2,12 @@
   {
     "id": 1,
     "class": "person",
-    "confidence": 0.91,
+    "confidence": 0.87,
     "bbox": [
-      214,
-      138,
-      296,
-      818
-    ]
-  },
-  {
-    "id": 2,
-    "class": "person",
-    "confidence": 0.9,
-    "bbox": [
-      571,
-      182,
-      197,
-      536
-    ]
-  },
-  {
-    "id": 3,
-    "class": "person",
-    "confidence": 0.89,
-    "bbox": [
-      898,
-      272,
-      114,
-      318
-    ]
-  },
-  {
-    "id": 4,
-    "class": "person",
-    "confidence": 0.89,
-    "bbox": [
-      1008,
-      134,
-      297,
-      776
+      6,
+      0,
+      624,
+      479
     ]
   }
 ]

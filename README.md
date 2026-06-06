@@ -74,6 +74,15 @@ npm run dev
 
 Use this when running on a Windows machine with an NVIDIA GPU and CUDA Toolkit installed:
 
+**VS Code users:** open a new terminal before running the CUDA pipeline and verify that both the Visual Studio C++ compiler and CUDA compiler are available:
+
+```powershell
+where cl
+nvcc --version
+```
+
+If `where cl` does not find `cl.exe`, use an **x64 Native Tools Command Prompt for VS** or configure your VS Code terminal to start in the x64 Native Tools environment. The CUDA build needs that x64 Visual Studio compiler environment before `nvcc` can compile `resqvision.cu`.
+
 ```powershell
 .\scripts\check_cuda.ps1
 .\scripts\run_cuda_local.ps1
