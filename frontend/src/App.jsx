@@ -666,9 +666,9 @@ function SystemArchitecture() {
 }
 
 const CV_MOCK = [
-  { id: 1, class: 'person', confidence: 0.94, bbox: [120, 80, 200, 340] },
-  { id: 2, class: 'person', confidence: 0.87, bbox: [310, 95, 180, 310] },
-  { id: 3, class: 'person', confidence: 0.76, bbox: [520, 110, 165, 290] }
+  { id: 1, class: 'person', confidence: 0.94, bbox: [120, 80, 200, 340], center: [220, 250] },
+  { id: 2, class: 'person', confidence: 0.87, bbox: [310, 95, 180, 310], center: [400, 250] },
+  { id: 3, class: 'person', confidence: 0.76, bbox: [520, 110, 165, 290], center: [602, 255] }
 ];
 
 function confidenceClass(c) {
@@ -679,6 +679,7 @@ function confidenceClass(c) {
 
 function ComputerVision() {
   const [detections, setDetections] = useState(CV_MOCK);
+  const [detectionSource, setDetectionSource] = useState(null);
   const [hasLiveData, setHasLiveData] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(Date.now());
   const [previewAvailable, setPreviewAvailable] = useState(true);
@@ -693,7 +694,9 @@ function ComputerVision() {
           return r.json();
         })
         .then((data) => {
-          setDetections(Array.isArray(data) ? data : CV_MOCK);
+          const nextDetections = Array.isArray(data) ? data : data?.detections;
+          setDetections(Array.isArray(nextDetections) ? nextDetections : CV_MOCK);
+          setDetectionSource(Array.isArray(data) ? 'legacy_array' : data?.source ?? null);
           setHasLiveData(true);
           liveLoaded = true;
           setPreviewVersion(Date.now());
@@ -702,6 +705,7 @@ function ComputerVision() {
         .catch(() => {
           if (!liveLoaded) {
             setDetections(CV_MOCK);
+            setDetectionSource(null);
             setHasLiveData(false);
           }
           // if liveLoaded is true, keep previous detections – no flicker
@@ -712,6 +716,9 @@ function ComputerVision() {
     const interval = setInterval(loadLiveDetections, 1000);
     return () => clearInterval(interval);
   }, []); // empty deps – interval created once, liveLoaded via closure
+
+  const isOfflineImage = detectionSource === 'offline_image';
+  const sourceLabel = isOfflineImage ? 'Offline Image Mode' : hasLiveData ? 'Live JSON' : 'Mock data';
 
   return (
     <section className="cv-page">
@@ -724,10 +731,10 @@ function ComputerVision() {
       <div className="cv-note">
         <Eye size={15} />
         <span>YOLO inference is generated externally by Python/Colab. This page only visualizes detection artifacts.</span>
-        <span className={`cv-source-badge ${hasLiveData ? 'cv-badge-live' : 'cv-badge-mock'}`}>
-          {hasLiveData ? 'Live JSON' : 'Mock data'}
+        <span className={`cv-source-badge ${isOfflineImage ? 'cv-badge-offline' : hasLiveData ? 'cv-badge-live' : 'cv-badge-mock'}`}>
+          {sourceLabel}
         </span>
-        {hasLiveData && <span className="cv-live-badge">LIVE</span>}
+        {hasLiveData && detectionSource === 'live_camera' && <span className="cv-live-badge">LIVE</span>}
       </div>
 
       <div className="cv-layout">
@@ -775,6 +782,15 @@ function ComputerVision() {
                     ))}
                     ]&nbsp;&nbsp;<small>x, y, w, h</small>
                   </div>
+                  {Array.isArray(det.center) ? (
+                    <div className="cv-det-bbox">
+                      center&nbsp;[
+                      {det.center.map((v, i) => (
+                        <span key={i}>{i > 0 ? ', ' : ''}{v}</span>
+                      ))}
+                      ]
+                    </div>
+                  ) : null}
                   <div className="cv-conf-bar">
                     <div
                       className={`cv-conf-fill ${confidenceClass(det.confidence)}`}

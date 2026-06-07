@@ -75,12 +75,14 @@ try:
             x1, y1, x2, y2 = [int(v) for v in box.xyxy[0].tolist()]
             w = x2 - x1
             h = y2 - y1
+            center = [x1 + w // 2, y1 + h // 2]
 
             detections.append({
                 "id":         detection_id,
                 "class":      "person",
                 "confidence": confidence,
                 "bbox":       [x1, y1, w, h],
+                "center":     center,
             })
             detection_id += 1
 

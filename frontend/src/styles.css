@@ -1127,6 +1127,12 @@ main {
   letter-spacing: 0.5px;
 }
 
+.yolo-image-fusion-badge {
+  border-color: #fed7aa;
+  color: #9a3412;
+  background: rgba(255, 247, 237, 0.94);
+}
+
 .map-help-text::after {
   content: "Wheel to zoom \00b7 drag to pan \00b7 0 reset";
   color: #64748b;
@@ -1162,6 +1168,15 @@ main {
 .top-label {
   paint-order: stroke;
   stroke: rgba(255, 255, 255, 0.88);
+  stroke-width: 2px;
+}
+
+.visual-fix-label {
+  fill: #0f2747;
+  font-size: 7px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.9);
   stroke-width: 2px;
 }
 
@@ -1432,6 +1447,11 @@ th {
 .cv-badge-mock {
   background: var(--orange-soft);
   color: var(--orange);
+}
+
+.cv-badge-offline {
+  background: #fff7ed;
+  color: #9a3412;
 }
 
 .cv-badge-loading {

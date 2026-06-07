@@ -39,6 +39,10 @@ function normalizeRiskRow(row, index) {
     confidence: row.confidence,
     recommendedAction: row.recommended_action ?? row.recommendedAction,
     source: row.source,
+    imageCenter: row.image_center ?? row.imageCenter,
+    mapPosition: row.map_position ?? row.mapPosition,
+    localizationMode: row.localization_mode ?? row.localizationMode,
+    localizationLabel: row.localization_label ?? row.localizationLabel,
   };
 }
 
@@ -75,9 +79,9 @@ export async function loadBenchmarkResults() {
 
 export async function loadRiskRanking() {
   const fusion = await safeFetch('/data/tactical_fusion.json');
-  if (fusion?.fusion_mode === 'YOLO_LIVE' && Array.isArray(fusion.targets) && fusion.targets.length) {
+  if (fusion?.fusion_mode?.startsWith('YOLO') && Array.isArray(fusion.targets) && fusion.targets.length) {
     const targets = fusion.targets.map(normalizeRiskRow).filter(Boolean);
-    targets.fusionMode = 'YOLO_LIVE';
+    targets.fusionMode = fusion.fusion_mode;
     return targets;
   }
 

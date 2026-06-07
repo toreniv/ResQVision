@@ -14,6 +14,8 @@ FUSION_PATH = DATA_DIR / "tactical_fusion.json"
 DEFAULT_FRAME_WIDTH = 640
 DEFAULT_FRAME_HEIGHT = 480
 MAP_SIZE = 1000
+LOCALIZATION_MODE = "visual_relative"
+LOCALIZATION_LABEL = "GPS-Denied Visual Fix"
 
 
 def load_json(path: Path, fallback: Any) -> Any:
@@ -56,6 +58,9 @@ def extract_detection_payload(raw: Any) -> tuple[list[dict[str, Any]], int, int,
     frame_width = int(as_float(raw.get("frame_width"), DEFAULT_FRAME_WIDTH))
     frame_height = int(as_float(raw.get("frame_height"), DEFAULT_FRAME_HEIGHT))
 
+    if not source or "frame_width" not in raw or "frame_height" not in raw or "detections" not in raw:
+        print("[WARN] detections.json is missing unified schema fields. Expected source, frame_width, frame_height, detections.")
+
     if not isinstance(detections, list):
         detections = []
 
@@ -70,10 +75,16 @@ def fusion_mode_from_source(source: str) -> str:
     return "YOLO_FUSION"
 
 
-def bbox_center(det: dict[str, Any]) -> tuple[float, float] | None:
+def detection_center(det: dict[str, Any]) -> tuple[float, float] | None:
+    center = det.get("center")
+    if isinstance(center, list) and len(center) >= 2:
+        return as_float(center[0]), as_float(center[1])
+
     bbox = det.get("bbox")
     if not isinstance(bbox, list) or len(bbox) < 4:
         return None
+
+    print(f"[WARN] Detection {det.get('id', '?')} is missing center. Falling back to bbox center.")
 
     x = as_float(bbox[0])
     y = as_float(bbox[1])
@@ -81,6 +92,21 @@ def bbox_center(det: dict[str, Any]) -> tuple[float, float] | None:
     height = as_float(bbox[3])
 
     return x + width / 2, y + height / 2
+
+
+def visual_localization(center_x: float, center_y: float, frame_width: int, frame_height: int) -> dict[str, Any]:
+    x_map = round((center_x / max(frame_width, 1)) * MAP_SIZE, 1)
+    y_map = round((center_y / max(frame_height, 1)) * MAP_SIZE, 1)
+    image_center = [round(center_x, 1), round(center_y, 1)]
+    map_position = [x_map, y_map]
+    return {
+        "localization_mode": LOCALIZATION_MODE,
+        "localization_label": LOCALIZATION_LABEL,
+        "image_center": image_center,
+        "map_position": map_position,
+        "x_map": x_map,
+        "y_map": y_map,
+    }
 
 
 def risk_from_entry(entry: Any) -> float | None:
@@ -135,11 +161,12 @@ def main() -> int:
 
     targets: list[dict[str, Any]] = []
     for index, det in enumerate(person_detections):
-        center = bbox_center(det)
+        center = detection_center(det)
         if center is None:
             continue
 
         center_x, center_y = center
+        localization = visual_localization(center_x, center_y, frame_width, frame_height)
         confidence = as_float(det.get("confidence", det.get("conf")), 0.0)
         matched = risk_entries[index] if index < len(risk_entries) and isinstance(risk_entries[index], dict) else {}
         matched_risk = risk_from_entry(matched)
@@ -154,8 +181,12 @@ def main() -> int:
             "class": det.get("class") or "person",
             "confidence": confidence,
             "bbox": det.get("bbox"),
-            "x_map": (center_x / max(frame_width, 1)) * MAP_SIZE,
-            "y_map": (center_y / max(frame_height, 1)) * MAP_SIZE,
+            "image_center": localization["image_center"],
+            "x_map": localization["x_map"],
+            "y_map": localization["y_map"],
+            "map_position": localization["map_position"],
+            "localization_mode": localization["localization_mode"],
+            "localization_label": localization["localization_label"],
             "risk_score": risk_score,
             "category": matched.get("category") or category_from_risk(risk_score),
             "hr": matched.get("heart_rate") or matched.get("hr") or 0,

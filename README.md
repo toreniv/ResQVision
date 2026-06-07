@@ -233,13 +233,33 @@ Both offline and live YOLO scripts write `frontend/public/data/detections.json` 
       "id": 1,
       "class": "person",
       "confidence": 0.95,
-      "bbox": [120, 80, 200, 340]
+      "bbox": [120, 80, 200, 340],
+      "center": [220, 250]
     }
   ]
 }
 ```
 
-`source` is `offline_image` for `scripts/yolo_detect.py` and `live_camera` for `scripts/yolo_live.py`. Bounding boxes use `[x, y, width, height]` in pixel coordinates.
+`source` is `offline_image` for `scripts/yolo_detect.py` and `live_camera` for `scripts/yolo_live.py`. Bounding boxes use `[x, y, width, height]` in pixel coordinates. `center` is `[center_x, center_y]` in image pixels.
+
+### Visual Casualty Localization
+
+The YOLO tactical flow demonstrates a relative visual localization layer:
+
+```text
+YOLO detection -> image center extraction -> tactical coordinate normalization -> fusion with casualty risk ranking
+```
+
+For each detected person, ResQVision reads the bounding box center and normalizes it into the tactical map's 0-1000 coordinate grid:
+
+```text
+x_map = center_x / frame_width * 1000
+y_map = center_y / frame_height * 1000
+```
+
+The fusion output labels these positions as `GPS-Denied Visual Fix` with `localization_mode: visual_relative`, then associates them with the existing evacuation priority and risk category.
+
+This demonstrates relative visual localization for tactical decision support. It is not a complete GPS-denied navigation system.
 
 ---
 
@@ -261,6 +281,13 @@ Webcam → YOLO → detections.json → fuse_yolo_to_tactical.py → tactical_fu
 ```
 
 The fusion layer maps YOLO person detections into the same 0-1000 tactical grid used by Tactical Command. When live detections are available, the dashboard prefers `tactical_fusion.json` for map markers and top evacuation targets. If detections are missing or empty, the fusion script writes a `NO_DATA` artifact and the dashboard falls back to `risk_ranking.json`.
+
+Offline image mode uses the same schema and fusion layer:
+
+```bash
+venv\Scripts\python.exe scripts\yolo_detect.py --image scripts\sample_input.png
+venv\Scripts\python.exe scripts\fuse_yolo_to_tactical.py
+```
 
 Run manually:
 

@@ -203,6 +203,7 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
     >
       <p className="map-help-text">Ctrl + wheel / Ctrl +/- to zoom · drag to pan</p>
       {fusionMode === 'YOLO_LIVE' ? <div className="yolo-fusion-badge">YOLO LIVE FUSION</div> : null}
+      {fusionMode === 'YOLO_IMAGE' ? <div className="yolo-fusion-badge yolo-image-fusion-badge">YOLO IMAGE FUSION</div> : null}
       <div className="map-zoom-controls" aria-label="Map zoom controls">
         <button type="button" onClick={() => zoomMap(0.88)}>+</button>
         <button type="button" onClick={() => zoomMap(1.12)}>-</button>
@@ -350,9 +351,19 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
           const isTopTarget = topRank > 0;
           const sx = soldier.x;
           const sy = soldier.source === 'YOLO' ? soldier.y : MAP_SIZE - soldier.y;
+          const isVisualFix = soldier.localizationMode === 'visual_relative';
 
           return (
           <g key={soldier.id} className={`casualty-marker ${isTopTarget ? 'top-casualty' : ''}`}>
+            {isVisualFix ? (
+              <path
+                d={`M ${sx} ${sy - 12} L ${sx + 10} ${sy} L ${sx} ${sy + 12} L ${sx - 10} ${sy} Z`}
+                fill="none"
+                stroke="#0f2747"
+                strokeWidth="1.2"
+                opacity="0.72"
+              />
+            ) : null}
             {isTopTarget ? (
               <>
                 <circle cx={sx} cy={sy} r="17" fill={colors[soldier.category]} opacity="0.05" />
@@ -368,6 +379,11 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
                 </text>
                 <text x={sx} y={sy - 22} textAnchor="middle" className="map-label casualty-label top-label">{soldier.id}</text>
               </g>
+            ) : null}
+            {isVisualFix ? (
+              <text x={sx} y={sy + (isTopTarget ? 34 : 22)} textAnchor="middle" className="map-label visual-fix-label">
+                {soldier.localizationLabel ?? 'GPS-Denied Visual Fix'}
+              </text>
             ) : null}
           </g>
           );
