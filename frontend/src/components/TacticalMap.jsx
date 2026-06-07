@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { mapObjects } from '../data.js';
 
 const colors = {
@@ -30,7 +30,7 @@ function clampViewBox(nextViewBox) {
   };
 }
 
-export default function TacticalMap({ planning = false, showArrows = false, soldiers = [], attentionData = [], fusionMode = null }) {
+export default function TacticalMap({ planning = false, showArrows = false, soldiers = [], attentionData = [], fusionMode = null, manualPoints = [] }) {
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: MAP_SIZE, h: MAP_SIZE });
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef(null);
@@ -38,6 +38,12 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
   const svgRef = useRef(null);
   const visibleSoldiers = soldiers.slice(0, 10);
   const topThree = visibleSoldiers.slice(0, 3);
+  const safeManualPoints = Array.isArray(manualPoints) ? manualPoints : [];
+  const manualTargets = visibleSoldiers.filter((soldier) => soldier.source === 'MANUAL_TAG');
+  const allManualPoints = [
+    ...safeManualPoints,
+    ...manualTargets.filter((target) => !safeManualPoints.some((point) => String(point.id) === String(target.id)))
+  ];
 
   const safeAttentionData = Array.isArray(attentionData) ? attentionData : [];
 
@@ -98,7 +104,7 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
     });
   };
 
-  const zoomAtPoint = (clientX, clientY, zoomFactor) => {
+  const zoomAtPoint = useCallback((clientX, clientY, zoomFactor) => {
     if (!svgRef.current) {
       return;
     }
@@ -119,7 +125,7 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
         h: nextH
       });
     });
-  };
+  }, []);
 
   const resetView = () => {
     setViewBox({ x: 0, y: 0, w: MAP_SIZE, h: MAP_SIZE });
@@ -138,10 +144,20 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
     }
   };
 
-  const handleWheel = (event) => {
+  const handleWheel = useCallback((event) => {
     event.preventDefault();
     zoomAtPoint(event.clientX, event.clientY, event.deltaY < 0 ? 0.88 : 1.12);
-  };
+  }, [zoomAtPoint]);
+
+  useEffect(() => {
+    const mapElement = mapRef.current;
+    if (!mapElement) {
+      return undefined;
+    }
+
+    mapElement.addEventListener('wheel', handleWheel, { passive: false });
+    return () => mapElement.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
 
   const handlePointerDown = (event) => {
     if (event.target.closest('button')) {
@@ -194,7 +210,6 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
       aria-label="ResQVision tactical grid"
       tabIndex={0}
       onKeyDown={handleKeyDown}
-      onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={endPan}
@@ -309,7 +324,7 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
                 x1={mapObjects.uav.x}
                 y1={mapObjects.uav.y}
                 x2={target.x}
-                y2={target.source === 'YOLO' ? target.y : MAP_SIZE - target.y}
+                y2={target.source === 'YOLO' || target.source === 'MANUAL_TAG' ? target.y : MAP_SIZE - target.y}
                 stroke="#3b82f6"
               strokeWidth="1.4"
               strokeDasharray="8 12"
@@ -328,7 +343,7 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
         {/* ATTENTION HALOS – rendered before markers so they sit behind */}
         {visibleSoldiers.map((soldier) => {
           const sx = soldier.x;
-          const sy = soldier.source === 'YOLO' ? soldier.y : MAP_SIZE - soldier.y;
+          const sy = soldier.source === 'YOLO' || soldier.source === 'MANUAL_TAG' ? soldier.y : MAP_SIZE - soldier.y;
           const level = getAttentionLevel(soldier.id, attentionById, attentionThresholds);
           
           if (level === 'none') return null;
@@ -347,6 +362,8 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
         })}
 
         {visibleSoldiers.map((soldier) => {
+          if (soldier.source === 'MANUAL_TAG') return null;
+
           const topRank = topThree.findIndex((target) => target.id === soldier.id) + 1;
           const isTopTarget = topRank > 0;
           const sx = soldier.x;
@@ -386,6 +403,28 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
               </text>
             ) : null}
           </g>
+          );
+        })}
+
+        {allManualPoints.map((point) => {
+          const sx = Number(point.x_map ?? point.x ?? point.map_position?.[0] ?? 0);
+          const sy = Number(point.y_map ?? point.y ?? point.map_position?.[1] ?? 0);
+          if (!Number.isFinite(sx) || !Number.isFinite(sy)) return null;
+
+          return (
+            <g key={point.id} className="manual-drone-marker">
+              <circle cx={sx} cy={sy} r="15" fill="#e0f2fe" stroke="#0891b2" strokeWidth="1.6" opacity="0.86" />
+              <path d={`M ${sx - 9} ${sy} L ${sx + 9} ${sy} M ${sx} ${sy - 9} L ${sx} ${sy + 9}`} stroke="#0e7490" strokeWidth="1.8" strokeLinecap="round" />
+              <circle cx={sx} cy={sy} r="3.4" fill="#0e7490" stroke="#ffffff" strokeWidth="1" />
+              {point.telemetryStatus === 'LINKED' || point.risk ? (
+                <text x={sx} y={sy - 21} textAnchor="middle" className="map-label manual-risk-label">
+                  {point.soldierId ?? point.soldier_id ?? point.id} {Number.isFinite(point.risk) ? `${Math.round(point.risk * 100)}` : ''}
+                </text>
+              ) : null}
+              <text x={sx} y={sy + 29} textAnchor="middle" className="map-label manual-fix-label">
+                {point.localization_label ?? point.localizationLabel ?? 'Manual Drone Visual Fix'}
+              </text>
+            </g>
           );
         })}
 

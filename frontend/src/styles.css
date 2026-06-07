@@ -1180,6 +1180,24 @@ main {
   stroke-width: 2px;
 }
 
+.manual-fix-label {
+  fill: #0e7490;
+  font-size: 7px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 2px;
+}
+
+.manual-risk-label {
+  fill: #0f2747;
+  font-size: 7.5px;
+  font-weight: 900;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 2px;
+}
+
 .rank-label {
   font-size: 7.5px;
 }
@@ -1638,6 +1656,302 @@ th {
   border-radius: 50%;
   background: #16a34a;
   animation: pulse-green 1.2s infinite;
+}
+
+.drone-marking-panel {
+  margin-top: 18px;
+}
+
+.manual-demo-note {
+  margin: -4px 0 16px;
+  padding: 10px 12px;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  color: #0e7490;
+  background: #f0f9ff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.drone-marking-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.drone-upload-column {
+  display: grid;
+  gap: 10px;
+}
+
+.drone-file-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #0f2747;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.drone-file-control input {
+  max-width: 260px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.drone-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.drone-action-row button,
+.manual-point-actions button {
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #0e7490;
+  background: #f0f9ff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.drone-action-row button:disabled,
+.manual-point-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.cv-backend-error,
+.cv-server-status,
+.cv-yolo-empty {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.cv-backend-error {
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  background: #fef2f2;
+}
+
+.cv-backend-error code {
+  width: fit-content;
+  padding: 3px 6px;
+  border-radius: 5px;
+  color: #7f1d1d;
+  background: #fee2e2;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+}
+
+.cv-backend-error small {
+  color: #b91c1c;
+}
+
+.cv-server-status {
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  background: #f0fdf4;
+  font-weight: 800;
+}
+
+.cv-yolo-empty {
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  background: #fff7ed;
+  font-weight: 800;
+}
+
+.drone-image-stage {
+  position: relative;
+  min-height: 280px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.drone-marking-image {
+  display: block;
+  width: 100%;
+  max-height: 540px;
+  object-fit: contain;
+  cursor: crosshair;
+  background: #0f172a;
+}
+
+.drone-image-placeholder {
+  display: grid;
+  min-height: 280px;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.drone-image-placeholder p {
+  max-width: 360px;
+  margin: 0;
+  color: #475569;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.drone-click-marker {
+  position: absolute;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  transform: translate(-50%, -50%);
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #0e7490;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.25);
+  font-size: 10px;
+  font-weight: 900;
+  pointer-events: none;
+}
+
+.manual-points-panel {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.manual-points-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.manual-points-header strong {
+  color: #0f2747;
+  font-size: 13px;
+}
+
+.manual-points-header button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: #0e7490;
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.manual-points-header button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.manual-point-list {
+  display: grid;
+  gap: 9px;
+}
+
+.manual-point-list > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.manual-point-row {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  background: #f0f9ff;
+}
+
+.manual-point-row.is-repositioning {
+  border-color: #0e7490;
+  box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.12);
+}
+
+.manual-point-id {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  place-items: center;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #0e7490;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.manual-point-form {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 7px;
+}
+
+.manual-point-form label {
+  display: grid;
+  gap: 3px;
+  color: #0f2747;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.manual-point-form input,
+.manual-point-form select {
+  min-width: 0;
+  border: 1px solid #cfe8f3;
+  border-radius: 7px;
+  padding: 6px 8px;
+  color: #0f172a;
+  background: #ffffff;
+  font: 12px Inter, system-ui, sans-serif;
+}
+
+.manual-point-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.manual-point-row strong,
+.manual-point-row span {
+  display: block;
+}
+
+.manual-point-row strong {
+  margin-bottom: 3px;
+  color: #0f2747;
+  font-size: 12px;
+}
+
+.manual-point-row span {
+  color: #64748b;
+  font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+  font-size: 11px;
+}
+
+@media (max-width: 1120px) {
+  .drone-marking-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @keyframes pulse-green {

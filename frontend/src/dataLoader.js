@@ -19,17 +19,21 @@ function normalizeBenchmarkRow(row) {
 
 function normalizeRiskRow(row, index) {
   const id = row.soldier_id ?? row.id ?? row.SoldierID ?? `S-${index}`;
-  const riskRaw = Number(row.risk_score ?? row.risk ?? row.risk_percent ?? 0);
-  const risk = riskRaw > 1 ? riskRaw / 100 : riskRaw;
+  const rawRiskValue = row.risk_score ?? row.risk ?? row.risk_percent;
+  const hasRisk = rawRiskValue !== undefined && rawRiskValue !== null && rawRiskValue !== '';
+  const riskRaw = Number(hasRisk ? rawRiskValue : 0);
+  const risk = hasRisk ? (riskRaw > 1 ? riskRaw / 100 : riskRaw) : null;
   const hr = Number(row.heart_rate ?? row.hr ?? row.hr_bpm ?? 0);
   const spo2 = Number(row.spo2 ?? row.SpO2 ?? row.spo2_percent ?? 0);
   const category = (row.category ?? row.Category ?? (risk >= 0.8 ? 'critical' : risk >= 0.6 ? 'urgent' : 'stable')).toLowerCase();
-  const x = Number(row.x_map ?? row.x_position ?? row.x ?? 500);
-  const y = Number(row.y_map ?? row.y_position ?? row.y ?? 500);
-  if (!id || risk === 0) return null;
+  const x = Number(row.x_map ?? row.map_x ?? row.x_position ?? row.x ?? 500);
+  const y = Number(row.y_map ?? row.map_y ?? row.y_position ?? row.y ?? 500);
+  if (!id || (risk === 0 && row.source !== 'MANUAL_TAG')) return null;
   return {
     rank: row.priority ?? row.rank ?? index + 1,
     id,
+    soldierId: row.soldier_id ?? id,
+    bandId: row.band_id ?? row.bandId,
     risk,
     hr,
     spo2,
@@ -43,6 +47,9 @@ function normalizeRiskRow(row, index) {
     mapPosition: row.map_position ?? row.mapPosition,
     localizationMode: row.localization_mode ?? row.localizationMode,
     localizationLabel: row.localization_label ?? row.localizationLabel,
+    telemetryStatus: row.telemetry_status ?? row.telemetryStatus,
+    label: row.label,
+    status: row.status,
   };
 }
 
@@ -79,7 +86,7 @@ export async function loadBenchmarkResults() {
 
 export async function loadRiskRanking() {
   const fusion = await safeFetch('/data/tactical_fusion.json');
-  if (fusion?.fusion_mode?.startsWith('YOLO') && Array.isArray(fusion.targets) && fusion.targets.length) {
+  if (fusion?.fusion_mode !== 'NO_DATA' && Array.isArray(fusion?.targets) && fusion.targets.length) {
     const targets = fusion.targets.map(normalizeRiskRow).filter(Boolean);
     targets.fusionMode = fusion.fusion_mode;
     return targets;

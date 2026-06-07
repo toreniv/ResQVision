@@ -47,7 +47,7 @@ function useCudaData() {
   const [attentionStats, setAttentionStats] = useState(null);
   const [fusionMode, setFusionMode] = useState(null);
 
-  useEffect(() => {
+  const refresh = () => {
     loadBenchmarkResults().then((data) => data && setBenchmarks(data));
     loadRiskRanking().then((data) => {
       if (data) {
@@ -56,9 +56,13 @@ function useCudaData() {
       }
     });
     loadAttentionStats().then((data) => data && setAttentionStats(data));
+  };
+
+  useEffect(() => {
+    refresh();
   }, []);
 
-  return { benchmarks, riskRanking, attentionStats, fusionMode };
+  return { benchmarks, riskRanking, attentionStats, fusionMode, refresh };
 }
 
 function Shell({ activePage, setActivePage, children }) {
@@ -103,7 +107,7 @@ function PageHeader({ eyebrow, title, description }) {
   );
 }
 
-function MissionPlan({ riskRanking, attentionStats, fusionMode, setActivePage, setExpandedMap }) {
+function MissionPlan({ riskRanking, attentionStats, fusionMode, manualDronePoints, setActivePage, setExpandedMap }) {
   const [variant, setVariant] = useState(false);
   const mission = variant ? missionVariant : missionBase;
   const liveSoldiers = riskRanking ?? topTargets;
@@ -171,7 +175,7 @@ function MissionPlan({ riskRanking, attentionStats, fusionMode, setActivePage, s
               Expand Map
             </button>
           </div>
-          <TacticalMap planning showArrows soldiers={liveSoldiers} attentionData={attentionStats ?? []} fusionMode={fusionMode} />
+          <TacticalMap planning showArrows soldiers={liveSoldiers} attentionData={attentionStats ?? []} fusionMode={fusionMode} manualPoints={manualDronePoints} />
         </section>
 
         <aside className="mission-briefing-stack">
@@ -262,7 +266,7 @@ function deriveRecommendedActions(targets) {
     return targets.slice(0, 4).map((target, index) => ({
       priority: index + 1,
       title: target.recommendedAction,
-      reason: `${target.id} - Risk ${(target.risk * 100).toFixed(1)}${target.confidence ? ` - YOLO ${(target.confidence * 100).toFixed(1)}%` : ''}`,
+      reason: `${target.id} - Risk ${Number.isFinite(target.risk) ? (target.risk * 100).toFixed(1) : 'UNLINKED'}${target.confidence ? ` - YOLO ${(target.confidence * 100).toFixed(1)}%` : ''}`,
       level: target.category,
     }));
   }
@@ -321,7 +325,7 @@ function deriveRecommendedActions(targets) {
   return actions;
 }
 
-function TacticalCommand({ riskRanking, attentionStats, fusionMode, setExpandedMap }) {
+function TacticalCommand({ riskRanking, attentionStats, fusionMode, manualDronePoints, setExpandedMap }) {
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const liveSoldiers = riskRanking ?? topTargets;
   const criticalCount = liveSoldiers.filter((target) => target.category === 'critical').length;
@@ -388,7 +392,7 @@ function TacticalCommand({ riskRanking, attentionStats, fusionMode, setExpandedM
               Expand Map
             </button>
           </div>
-          <TacticalMap planning showArrows soldiers={liveSoldiers} attentionData={attentionStats ?? []} fusionMode={fusionMode} />
+          <TacticalMap planning showArrows soldiers={liveSoldiers} attentionData={attentionStats ?? []} fusionMode={fusionMode} manualPoints={manualDronePoints} />
         </section>
 
         <aside className="tc-side-panel">
@@ -401,18 +405,18 @@ function TacticalCommand({ riskRanking, attentionStats, fusionMode, setExpandedM
           <div className="tc-target-list">
             {visibleTargets.map((target) => (
               <article className={`tc-target-row tc-severity-${target.category}`} key={target.id}>
-                <div className="tc-target-rank">{target.rank}</div>
+                <div className="tc-target-rank">{target.rank ?? 'M'}</div>
                 <div className="tc-target-body">
                   <div className="tc-target-top">
-                    <strong>Soldier ID: {target.id}</strong>
-                    <em>{(target.risk * 100).toFixed(1)}</em>
+                    <strong>{target.source === 'MANUAL_TAG' ? 'Manual Tag' : 'Soldier ID'}: {target.soldierId ?? target.id}</strong>
+                    <em>{Number.isFinite(target.risk) ? (target.risk * 100).toFixed(1) : 'UNLINKED'}</em>
                   </div>
                   <div className="tc-target-vitals">
-                    {target.source === 'YOLO' ? <span>YOLO confidence: {((target.confidence ?? 0) * 100).toFixed(1)}%</span> : <span>HR: {target.hr} bpm</span>}
-                    {target.source === 'YOLO' ? <span>{target.recommendedAction}</span> : <span>SpO2: {target.spo2}%</span>}
+                    {target.source === 'YOLO' ? <span>YOLO confidence: {((target.confidence ?? 0) * 100).toFixed(1)}%</span> : <span>HR: {target.hr || 'N/A'} bpm</span>}
+                    {target.source === 'MANUAL_TAG' ? <span>{target.telemetryStatus ?? 'UNLINKED'} {target.bandId ? `- ${target.bandId}` : ''}</span> : target.source === 'YOLO' ? <span>{target.recommendedAction}</span> : <span>SpO2: {target.spo2}%</span>}
                   </div>
                   <div className="tc-target-bar">
-                    <i style={{ width: `${Math.round(target.risk * 100)}%` }} />
+                    <i style={{ width: `${Math.round((target.risk ?? 0) * 100)}%` }} />
                   </div>
                 </div>
               </article>
@@ -671,18 +675,35 @@ const CV_MOCK = [
   { id: 3, class: 'person', confidence: 0.76, bbox: [520, 110, 165, 290], center: [602, 255] }
 ];
 
+const MANUAL_POINTS_STORAGE_KEY = 'resqvision_manual_drone_points';
+const MAP_SIZE = 1000;
+
 function confidenceClass(c) {
   if (c >= 0.85) return 'cv-conf-green';
   if (c >= 0.65) return 'cv-conf-orange';
   return 'cv-conf-red';
 }
 
-function ComputerVision() {
+function normalizeManualCoordinate(value, size) {
+  return Math.round((value / Math.max(size, 1)) * MAP_SIZE * 10) / 10;
+}
+
+function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTacticalData }) {
   const [detections, setDetections] = useState(CV_MOCK);
   const [detectionSource, setDetectionSource] = useState(null);
   const [hasLiveData, setHasLiveData] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(Date.now());
   const [previewAvailable, setPreviewAvailable] = useState(true);
+  const [manualImageUrl, setManualImageUrl] = useState(null);
+  const [manualImageName, setManualImageName] = useState(null);
+  const [manualImageSize, setManualImageSize] = useState({ width: 0, height: 0 });
+  const [selectedImageFile, setSelectedImageFile] = useState(null);
+  const [selectedMarkerId, setSelectedMarkerId] = useState(null);
+  const [isRunningYolo, setIsRunningYolo] = useState(false);
+  const [isSavingMarkers, setIsSavingMarkers] = useState(false);
+  const [backendError, setBackendError] = useState(null);
+  const [serverStatus, setServerStatus] = useState(null);
+  const [yoloNoDetections, setYoloNoDetections] = useState(false);
 
   useEffect(() => {
     let liveLoaded = false;
@@ -720,17 +741,205 @@ function ComputerVision() {
   const isOfflineImage = detectionSource === 'offline_image';
   const sourceLabel = isOfflineImage ? 'Offline Image Mode' : hasLiveData ? 'Live JSON' : 'Mock data';
 
+  const handleManualImageChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setSelectedImageFile(file);
+    setBackendError(null);
+    setServerStatus(null);
+    setYoloNoDetections(false);
+    setManualImageUrl((currentUrl) => {
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+      return URL.createObjectURL(file);
+    });
+    setManualImageName(file.name);
+    setManualImageSize({ width: 0, height: 0 });
+  };
+
+  const handleManualImageLoad = (event) => {
+    setManualImageSize({
+      width: event.currentTarget.naturalWidth,
+      height: event.currentTarget.naturalHeight
+    });
+  };
+
+  const handleManualImageClick = (event) => {
+    const image = event.currentTarget;
+    const rect = image.getBoundingClientRect();
+    const imageWidth = manualImageSize.width || image.naturalWidth;
+    const imageHeight = manualImageSize.height || image.naturalHeight;
+    if (!imageWidth || !imageHeight || !rect.width || !rect.height) return;
+
+    const x = Math.round(((event.clientX - rect.left) / rect.width) * imageWidth);
+    const y = Math.round(((event.clientY - rect.top) / rect.height) * imageHeight);
+    const xMap = normalizeManualCoordinate(x, imageWidth);
+    const yMap = normalizeManualCoordinate(y, imageHeight);
+    const xNorm = Math.round((x / Math.max(imageWidth, 1)) * 10000) / 10000;
+    const yNorm = Math.round((y / Math.max(imageHeight, 1)) * 10000) / 10000;
+
+    if (selectedMarkerId) {
+      setManualDronePoints((current) => current.map((point) => (
+        point.id === selectedMarkerId
+          ? {
+              ...point,
+              x_image: x,
+              y_image: y,
+              x_norm: xNorm,
+              y_norm: yNorm,
+              image_center: [x, y],
+              x_map: xMap,
+              y_map: yMap,
+              map_position: [xMap, yMap],
+            }
+          : point
+      )));
+      setSelectedMarkerId(null);
+      return;
+    }
+
+    const nextIndex = manualDronePoints.length + 1;
+
+    setManualDronePoints((current) => [
+      ...current,
+      {
+        id: `manual_${nextIndex}`,
+        source: 'MANUAL_TAG',
+        soldier_id: '',
+        band_id: '',
+        class: 'visual_point',
+        confidence: 1.0,
+        x_image: x,
+        y_image: y,
+        x_norm: xNorm,
+        y_norm: yNorm,
+        image_center: [x, y],
+        x_map: xMap,
+        y_map: yMap,
+        map_position: [xMap, yMap],
+        localization_mode: 'manual_visual_relative',
+        localization_label: 'Manual Drone Visual Fix',
+        label: 'Soldier',
+        status: '',
+        priority: null,
+        risk_score: null
+      }
+    ]);
+  };
+
+  const clearManualPoints = () => {
+    setManualDronePoints([]);
+    setSelectedMarkerId(null);
+  };
+
+  const updateManualPoint = (id, patch) => {
+    setManualDronePoints((current) => current.map((point) => (
+      point.id === id ? { ...point, ...patch } : point
+    )));
+  };
+
+  const deleteManualPoint = (id) => {
+    setManualDronePoints((current) => current.filter((point) => point.id !== id));
+    if (selectedMarkerId === id) setSelectedMarkerId(null);
+  };
+
+  const refreshDetectionsOnce = () => {
+    return fetch('/data/detections.json?t=' + Date.now())
+      .then((r) => {
+        if (!r.ok) throw new Error('detections missing');
+        return r.json();
+      })
+      .then((data) => {
+        const nextDetections = Array.isArray(data) ? data : data?.detections;
+        setDetections(Array.isArray(nextDetections) ? nextDetections : CV_MOCK);
+        setDetectionSource(Array.isArray(data) ? 'legacy_array' : data?.source ?? null);
+        setHasLiveData(true);
+        setPreviewVersion(Date.now());
+        setPreviewAvailable(true);
+      });
+  };
+
+  const runYoloOnUploadedImage = async () => {
+    if (!selectedImageFile) {
+      setBackendError('Upload a drone image before running YOLO.');
+      return;
+    }
+
+    setIsRunningYolo(true);
+    setBackendError(null);
+    setServerStatus(null);
+    setYoloNoDetections(false);
+
+    try {
+      const formData = new FormData();
+      formData.append('image', selectedImageFile);
+      const response = await fetch('http://127.0.0.1:8000/api/yolo/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        throw new Error(result.message || 'YOLO upload failed');
+      }
+      setYoloNoDetections(result.detections === 0);
+      setServerStatus(`YOLO complete: ${result.detections} detection${result.detections === 1 ? '' : 's'} fused.`);
+      await refreshDetectionsOnce();
+      refreshTacticalData?.();
+    } catch (error) {
+      setBackendError(error.message || 'Local YOLO backend is not running.');
+    } finally {
+      setIsRunningYolo(false);
+    }
+  };
+
+  const saveManualMarkers = async () => {
+    setIsSavingMarkers(true);
+    setBackendError(null);
+    setServerStatus(null);
+
+    try {
+      const markers = manualDronePoints.map((point) => ({
+        source: 'MANUAL_TAG',
+        soldier_id: point.soldier_id ?? '',
+        band_id: point.band_id ?? '',
+        x_image: point.x_image ?? point.image_center?.[0] ?? 0,
+        y_image: point.y_image ?? point.image_center?.[1] ?? 0,
+        x_norm: point.x_norm ?? 0,
+        y_norm: point.y_norm ?? 0,
+        x_map: point.x_map ?? point.map_position?.[0] ?? 0,
+        y_map: point.y_map ?? point.map_position?.[1] ?? 0,
+        label: point.label ?? 'Soldier',
+        status: point.status ?? '',
+      }));
+      const response = await fetch('http://127.0.0.1:8000/api/markers/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(markers),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        throw new Error(result.message || 'Marker save failed');
+      }
+      setServerStatus(`Saved ${result.markers} manual marker${result.markers === 1 ? '' : 's'} and refreshed fusion.`);
+      refreshTacticalData?.();
+    } catch (error) {
+      setBackendError(error.message || 'Local YOLO backend is not running.');
+    } finally {
+      setIsSavingMarkers(false);
+    }
+  };
+
   return (
     <section className="cv-page">
       <PageHeader
         eyebrow="Computer vision"
         title="Detection Preview"
-        description="YOLO inference is generated externally by Python/Colab. This page only visualizes detection artifacts."
+        description="Upload a drone frame, run local YOLO inference, then manually confirm or tag soldiers by ResQBand ID."
       />
 
       <div className="cv-note">
         <Eye size={15} />
-        <span>YOLO inference is generated externally by Python/Colab. This page only visualizes detection artifacts.</span>
+        <span>Upload a drone frame, run local YOLO inference, then manually confirm or tag soldiers by ResQBand ID.</span>
         <span className={`cv-source-badge ${isOfflineImage ? 'cv-badge-offline' : hasLiveData ? 'cv-badge-live' : 'cv-badge-mock'}`}>
           {sourceLabel}
         </span>
@@ -803,6 +1012,142 @@ function ComputerVision() {
           </div>
         </section>
       </div>
+
+      <section className="panel drone-marking-panel">
+        <div className="panel-title">
+          <h3>Drone Image Marking Demo</h3>
+          <span>{manualDronePoints.length} manual fix{manualDronePoints.length !== 1 ? 'es' : ''}</span>
+        </div>
+        <p className="manual-demo-note">
+          Upload a drone frame, run local YOLO inference, then manually confirm or tag soldiers by ResQBand ID.
+        </p>
+
+        <div className="drone-marking-grid">
+          <div className="drone-upload-column">
+            <label className="drone-file-control">
+              <span>Upload drone frame</span>
+              <input type="file" accept="image/*" onChange={handleManualImageChange} />
+            </label>
+            <div className="drone-action-row">
+              <button type="button" onClick={runYoloOnUploadedImage} disabled={!selectedImageFile || isRunningYolo}>
+                {isRunningYolo ? 'Running YOLO...' : 'Run YOLO on Uploaded Image'}
+              </button>
+              <button type="button" onClick={saveManualMarkers} disabled={isSavingMarkers}>
+                {isSavingMarkers ? 'Saving...' : 'Save Tactical Tags'}
+              </button>
+            </div>
+            {backendError ? (
+              <div className="cv-backend-error">
+                <strong>Local YOLO backend is not running.</strong>
+                <span>Start it with:</span>
+                <code>venv\Scripts\python.exe scripts\yolo_server.py</code>
+                <small>{backendError}</small>
+              </div>
+            ) : null}
+            {serverStatus ? <div className="cv-server-status">{serverStatus}</div> : null}
+            {yoloNoDetections ? (
+              <div className="cv-yolo-empty">
+                YOLO did not detect soldiers automatically in this overhead frame. Use Manual Tactical Tagging to mark soldiers and link them to ResQBand IDs.
+              </div>
+            ) : null}
+
+            <div className="drone-image-stage">
+              {manualImageUrl ? (
+                <>
+                  <img
+                    src={manualImageUrl}
+                    alt={manualImageName ?? 'Uploaded drone frame'}
+                    className="drone-marking-image"
+                    onClick={handleManualImageClick}
+                    onLoad={handleManualImageLoad}
+                  />
+                  {manualImageSize.width > 0 ? manualDronePoints.map((point) => (
+                    <span
+                      key={point.id}
+                      className="drone-click-marker"
+                      style={{
+                        left: `${(point.image_center[0] / manualImageSize.width) * 100}%`,
+                        top: `${(point.image_center[1] / manualImageSize.height) * 100}%`
+                      }}
+                    >
+                      {point.id.replace('manual_', '')}
+                    </span>
+                  )) : null}
+                </>
+              ) : (
+                <div className="drone-image-placeholder">
+                  <Eye size={42} strokeWidth={1.2} />
+                  <p>Upload a drone frame to mark suspected casualty locations</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <aside className="manual-points-panel">
+            <div className="manual-points-header">
+              <strong>Clicked Points</strong>
+              <button type="button" onClick={clearManualPoints} disabled={!manualDronePoints.length}>Clear</button>
+            </div>
+            <div className="manual-point-list">
+              {manualDronePoints.length ? manualDronePoints.map((point) => (
+                <article key={point.id} className={`manual-point-row ${selectedMarkerId === point.id ? 'is-repositioning' : ''}`}>
+                  <div className="manual-point-id">{point.id.replace('manual_', '#')}</div>
+                  <div className="manual-point-form">
+                    <strong>{point.localization_label}</strong>
+                    <label>
+                      Soldier ID
+                      <input
+                        value={point.soldier_id ?? ''}
+                        onChange={(event) => updateManualPoint(point.id, { soldier_id: event.target.value })}
+                        placeholder="388"
+                      />
+                    </label>
+                    <label>
+                      Band ID
+                      <input
+                        value={point.band_id ?? ''}
+                        onChange={(event) => updateManualPoint(point.id, { band_id: event.target.value })}
+                        placeholder="RB-388"
+                      />
+                    </label>
+                    <label>
+                      Label
+                      <input
+                        value={point.label ?? 'Soldier'}
+                        onChange={(event) => updateManualPoint(point.id, { label: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Status
+                      <select
+                        value={point.status ?? ''}
+                        onChange={(event) => updateManualPoint(point.id, { status: event.target.value })}
+                      >
+                        <option value="">Unspecified</option>
+                        <option value="Critical">Critical</option>
+                        <option value="Urgent">Urgent</option>
+                        <option value="Stable">Stable</option>
+                      </select>
+                    </label>
+                    <span>image [{point.image_center.join(', ')}]</span>
+                    <span>map [{point.map_position.join(', ')}]</span>
+                    <div className="manual-point-actions">
+                      <button type="button" onClick={() => setSelectedMarkerId(point.id)}>
+                        Reposition
+                      </button>
+                      <button type="button" onClick={() => deleteManualPoint(point.id)}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              )) : (
+                <p>No manual points marked yet.</p>
+              )}
+            </div>
+          </aside>
+        </div>
+      </section>
     </section>
   );
 }
@@ -810,7 +1155,20 @@ function ComputerVision() {
 export default function App() {
   const [activePage, setActivePage] = useState('mission');
   const [expandedMap, setExpandedMap] = useState(null);
+  const [manualDronePoints, setManualDronePoints] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(MANUAL_POINTS_STORAGE_KEY);
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
   const cudaData = useCudaData();
+
+  useEffect(() => {
+    window.localStorage.setItem(MANUAL_POINTS_STORAGE_KEY, JSON.stringify(manualDronePoints));
+  }, [manualDronePoints]);
 
   useEffect(() => {
     if (!expandedMap) {
@@ -828,11 +1186,11 @@ export default function App() {
   }, [expandedMap]);
 
   const page = {
-    mission: <MissionPlan riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} fusionMode={cudaData.fusionMode} setActivePage={setActivePage} setExpandedMap={setExpandedMap} />,
-    command: <TacticalCommand riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} fusionMode={cudaData.fusionMode} setExpandedMap={setExpandedMap} />,
+    mission: <MissionPlan riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} fusionMode={cudaData.fusionMode} manualDronePoints={manualDronePoints} setActivePage={setActivePage} setExpandedMap={setExpandedMap} />,
+    command: <TacticalCommand riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} fusionMode={cudaData.fusionMode} manualDronePoints={manualDronePoints} setExpandedMap={setExpandedMap} />,
     analytics: <Analytics benchmarks={cudaData.benchmarks} attentionStats={cudaData.attentionStats} />,
     architecture: <SystemArchitecture />,
-    cv: <ComputerVision />
+    cv: <ComputerVision manualDronePoints={manualDronePoints} setManualDronePoints={setManualDronePoints} refreshTacticalData={cudaData.refresh} />
   }[activePage];
 
   return (
@@ -853,7 +1211,7 @@ export default function App() {
               <button onClick={() => setExpandedMap(null)}>Close</button>
             </header>
             <div className="map-modal-body">
-              <TacticalMap planning showArrows soldiers={cudaData.riskRanking ?? topTargets} attentionData={cudaData.attentionStats ?? []} fusionMode={cudaData.fusionMode} />
+              <TacticalMap planning showArrows soldiers={cudaData.riskRanking ?? topTargets} attentionData={cudaData.attentionStats ?? []} fusionMode={cudaData.fusionMode} manualPoints={manualDronePoints} />
             </div>
           </section>
         </div>

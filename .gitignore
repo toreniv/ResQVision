@@ -70,12 +70,15 @@ datasets/
 
 # Generated detection artifacts
 frontend/public/data/detection_preview.jpg
+frontend/public/data/detections.json
+frontend/public/data/manual_markers.json
+frontend/public/data/tactical_fusion.json
+temp_uploads/
 
 # Optional:
 # אם אתה רוצה שהדשבורד יקבל נתונים אמיתיים מגיט - אל תתעלם מה-JSON
 # אם לא - בטל הערה מהשורות הבאות
 
-# frontend/public/data/detections.json
 # frontend/public/data/risk_ranking.json
 # frontend/public/data/attention_stats.json
 # frontend/public/data/benchmark_results.json

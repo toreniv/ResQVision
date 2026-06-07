@@ -1,51 +1,73 @@
 {
   "source": "offline_image",
-  "timestamp": "2026-06-07T07:56:37.711001Z",
-  "frame_width": 1536,
-  "frame_height": 1024,
+  "timestamp": "2026-06-07T12:57:53.164020Z",
+  "frame_width": 482,
+  "frame_height": 643,
+  "metadata": {
+    "mode": "drone_demo",
+    "model": "yolov8s.pt",
+    "imgsz": 1280,
+    "conf": 0.15,
+    "classes": [
+      0
+    ],
+    "retry_used": false,
+    "attempts": [
+      {
+        "model": "yolov8s.pt",
+        "imgsz": 1280,
+        "conf": 0.15,
+        "classes": [
+          0
+        ],
+        "detections": 3
+      }
+    ]
+  },
   "detections": [
     {
       "id": 1,
       "class": "person",
-      "confidence": 0.91,
+      "confidence": 0.44,
       "bbox": [
-        214,
-        138,
-        296,
-        818
+        178,
+        313,
+        102,
+        138
+      ],
+      "center": [
+        229,
+        382
       ]
     },
     {
       "id": 2,
       "class": "person",
-      "confidence": 0.9,
+      "confidence": 0.33,
       "bbox": [
-        571,
-        182,
-        197,
-        536
+        240,
+        188,
+        56,
+        90
+      ],
+      "center": [
+        268,
+        233
       ]
     },
     {
       "id": 3,
       "class": "person",
-      "confidence": 0.89,
+      "confidence": 0.19,
       "bbox": [
-        898,
-        272,
-        114,
-        318
-      ]
-    },
-    {
-      "id": 4,
-      "class": "person",
-      "confidence": 0.89,
-      "bbox": [
-        1008,
-        134,
-        297,
-        776
+        240,
+        188,
+        101,
+        132
+      ],
+      "center": [
+        290,
+        254
       ]
     }
   ]

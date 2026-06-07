@@ -263,6 +263,62 @@ This demonstrates relative visual localization for tactical decision support. It
 
 ---
 
+### Drone Image Marking Demo
+
+The Computer Vision page also includes a frontend-only drone image marking mode. It lets the operator upload a drone frame and manually mark suspected casualty locations by clicking on the image.
+
+Each clicked image coordinate is normalized into the same 0-1000 tactical map space:
+
+```text
+x_map = clicked_x / image_width * 1000
+y_map = clicked_y / image_height * 1000
+```
+
+Those points appear on the Tactical Map as `Manual Drone Visual Fix` markers with `localization_mode: manual_visual_relative`.
+
+This is a frontend-only visual localization demo. It does not write files, does not use a backend, does not use GPS, and does not run automatic YOLO inference on uploaded images. The existing CLI YOLO pipeline remains unchanged.
+
+---
+
+### Local YOLO Upload & Tactical Tagging
+
+For a stronger local demo, ResQVision can run a small local YOLO upload server. This keeps inference on your machine and preserves the existing CLI YOLO workflow.
+
+Start the backend:
+
+```powershell
+venv\Scripts\python.exe scripts\yolo_server.py
+```
+
+Start the frontend:
+
+```powershell
+cd frontend
+npm run dev
+```
+
+Demo flow:
+
+1. Open the Computer Vision page.
+2. Upload a drone image.
+3. Click `Run YOLO on Uploaded Image`.
+4. Review the detection preview and YOLO detections.
+5. Add or edit tactical markers on the drone image.
+6. Assign Soldier IDs and ResQBand IDs.
+7. Click `Save Tactical Tags`.
+8. Open Tactical Command and confirm fused YOLO/manual markers appear with linked telemetry when the Soldier ID matches `risk_ranking.json`.
+
+The local server writes generated artifacts to `frontend/public/data/`:
+
+* `detections.json`
+* `detection_preview.jpg`
+* `manual_markers.json`
+* `tactical_fusion.json`
+
+These files are generated demo artifacts and should not be committed.
+
+---
+
 ### YOLO Live Detection
 
 ```bash

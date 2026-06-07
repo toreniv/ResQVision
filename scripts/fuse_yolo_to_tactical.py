@@ -8,6 +8,7 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = PROJECT_ROOT / "frontend" / "public" / "data"
 DETECTIONS_PATH = DATA_DIR / "detections.json"
+MANUAL_MARKERS_PATH = DATA_DIR / "manual_markers.json"
 RISK_RANKING_PATH = DATA_DIR / "risk_ranking.json"
 FUSION_PATH = DATA_DIR / "tactical_fusion.json"
 
@@ -16,6 +17,8 @@ DEFAULT_FRAME_HEIGHT = 480
 MAP_SIZE = 1000
 LOCALIZATION_MODE = "visual_relative"
 LOCALIZATION_LABEL = "GPS-Denied Visual Fix"
+MANUAL_LOCALIZATION_MODE = "manual_visual_relative"
+MANUAL_LOCALIZATION_LABEL = "Manual Drone Visual Fix"
 
 
 def load_json(path: Path, fallback: Any) -> Any:
@@ -139,13 +142,87 @@ def detection_class(det: dict[str, Any]) -> str:
     return str(det.get("class") or "").lower()
 
 
+def risk_id(entry: dict[str, Any]) -> str:
+    return str(entry.get("soldier_id") or entry.get("id") or entry.get("SoldierID") or "")
+
+
+def risk_lookup(entries: list[Any]) -> dict[str, dict[str, Any]]:
+    lookup: dict[str, dict[str, Any]] = {}
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        entry_id = risk_id(entry)
+        if entry_id:
+            lookup[entry_id] = entry
+    return lookup
+
+
+def category_from_status(status: Any) -> str:
+    value = str(status or "").lower()
+    if value in {"critical", "urgent", "stable"}:
+        return value
+    return "stable"
+
+
+def marker_float(marker: dict[str, Any], *keys: str, default: float = 0.0) -> float:
+    for key in keys:
+        if key in marker:
+            return as_float(marker.get(key), default)
+    return default
+
+
+def manual_marker_target(marker: dict[str, Any], index: int, lookup: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    soldier_id = str(marker.get("soldier_id") or marker.get("id") or f"manual_{index + 1}")
+    x_norm = marker_float(marker, "x_norm", default=-1)
+    y_norm = marker_float(marker, "y_norm", default=-1)
+    x_map = marker_float(marker, "x_map", "map_x", default=x_norm * MAP_SIZE if x_norm >= 0 else 0)
+    y_map = marker_float(marker, "y_map", "map_y", default=y_norm * MAP_SIZE if y_norm >= 0 else 0)
+    x_image = marker_float(marker, "x_image", default=0)
+    y_image = marker_float(marker, "y_image", default=0)
+
+    matched = lookup.get(soldier_id)
+    matched_risk = risk_from_entry(matched) if matched else None
+    telemetry_status = "LINKED" if matched and matched_risk is not None else "UNLINKED"
+    category = (
+        matched.get("category") if matched else None
+    ) or category_from_status(marker.get("status"))
+
+    target: dict[str, Any] = {
+        "id": soldier_id,
+        "soldier_id": soldier_id,
+        "band_id": marker.get("band_id") or "",
+        "source": "MANUAL_TAG",
+        "class": "visual_point",
+        "confidence": 1.0,
+        "label": marker.get("label") or "Soldier",
+        "status": marker.get("status") or "",
+        "x_image": round(x_image, 1),
+        "y_image": round(y_image, 1),
+        "x_norm": round(x_map / MAP_SIZE, 4),
+        "y_norm": round(y_map / MAP_SIZE, 4),
+        "image_center": [round(x_image, 1), round(y_image, 1)],
+        "x_map": round(x_map, 1),
+        "y_map": round(y_map, 1),
+        "map_x": round(x_map, 1),
+        "map_y": round(y_map, 1),
+        "map_position": [round(x_map, 1), round(y_map, 1)],
+        "localization_mode": MANUAL_LOCALIZATION_MODE,
+        "localization_label": MANUAL_LOCALIZATION_LABEL,
+        "telemetry_status": telemetry_status,
+        "risk_score": matched_risk,
+        "category": category,
+        "hr": matched.get("heart_rate") or matched.get("hr") or 0 if matched else 0,
+        "spo2": matched.get("spo2") or matched.get("SpO2") or 0 if matched else 0,
+        "recommended_action": recommended_action(matched_risk) if matched_risk is not None else "Assign ResQBand / Soldier ID",
+        "priority": None,
+        "rank": None,
+    }
+    return target
+
+
 def main() -> int:
     raw_detections = load_json(DETECTIONS_PATH, None)
     detections, frame_width, frame_height, detection_source = extract_detection_payload(raw_detections)
-
-    if not detections:
-        write_fusion("NO_DATA", [])
-        return 0
 
     risk_ranking = load_json(RISK_RANKING_PATH, [])
     if isinstance(risk_ranking, list):
@@ -154,6 +231,7 @@ def main() -> int:
         risk_entries = risk_ranking.get("targets", [])
     else:
         risk_entries = []
+    risk_by_id = risk_lookup(risk_entries)
     person_detections = [
         det for det in detections
         if detection_class(det) in {"person", "soldier", "casualty", "0", ""}
@@ -194,7 +272,17 @@ def main() -> int:
             "recommended_action": recommended_action(risk_score),
         })
 
-    if not targets:
+    manual_markers = load_json(MANUAL_MARKERS_PATH, [])
+    if not isinstance(manual_markers, list):
+        manual_markers = []
+
+    manual_targets = [
+        manual_marker_target(marker, index, risk_by_id)
+        for index, marker in enumerate(manual_markers)
+        if isinstance(marker, dict)
+    ]
+
+    if not targets and not manual_targets:
         write_fusion("NO_DATA", [])
         return 0
 
@@ -203,7 +291,12 @@ def main() -> int:
         target["priority"] = priority
         target["rank"] = priority
 
-    write_fusion(fusion_mode_from_source(detection_source), targets)
+    combined_targets = targets + manual_targets
+    fusion_mode = fusion_mode_from_source(detection_source) if targets else "MANUAL_TAGS"
+    if targets and manual_targets:
+        fusion_mode = f"{fusion_mode}_MANUAL"
+
+    write_fusion(fusion_mode, combined_targets)
     return 0
 
 
