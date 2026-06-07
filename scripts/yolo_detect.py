@@ -10,6 +10,8 @@ import sys
 import time
 from typing import Any
 
+import numpy as np
+
 try:
     from ultralytics import YOLO
 except ImportError:
@@ -26,36 +28,56 @@ except ImportError:
 DEFAULT_IMAGE = "scripts/sample_input.jpg"
 DEFAULT_DATA_DIR = pathlib.Path("frontend/public/data")
 DEFAULT_DRONE_IMGSZ = 1280
-DEFAULT_DRONE_CONF = 0.15
-RETRY_DRONE_IMGSZ = 1536
+DEFAULT_DRONE_CONF = 0.10
+RETRY_DRONE_IMGSZ = 1920
 RETRY_DRONE_CONF = 0.10
-PERSON_CLASS_ID = 0
+PERSON_CLASS_NAMES = {"person", "pedestrian", "people"}
 TILE_SIZE = 640
-TILE_OVERLAP = 0.25
+TILE_OVERLAP = 0.50
 TILE_STRIDE = int(TILE_SIZE * (1 - TILE_OVERLAP))
 TILE_IMGSZ = 960
-TILE_CONF = 0.10
-NMS_IOU_THRESHOLD = 0.45
-PRIMARY_DRONE_MODEL = "yolov8s.pt"
-FALLBACK_DRONE_MODEL = "yolov8n.pt"
+TILE_CONF = 0.02
+NMS_IOU_THRESHOLD = 0.60
+MODEL_DIR = pathlib.Path("models")
+DRONE_MODEL_CANDIDATES = (
+    MODEL_DIR / "drone_tactical_best.pt",
+    pathlib.Path("yolov8s.pt"),
+    pathlib.Path("yolov8n.pt"),
+)
 
 
 def default_drone_model() -> str:
-    return PRIMARY_DRONE_MODEL
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    for candidate in DRONE_MODEL_CANDIDATES:
+        if candidate.exists():
+            return str(candidate)
+    return str(DRONE_MODEL_CANDIDATES[0])
 
 
 def load_yolo_model(model_name: str) -> tuple[Any, str]:
-    try:
-        return YOLO(model_name), model_name
-    except Exception:
-        if model_name == PRIMARY_DRONE_MODEL:
-            return YOLO(FALLBACK_DRONE_MODEL), FALLBACK_DRONE_MODEL
-        raise
+    requested = pathlib.Path(model_name)
+    candidate_paths = list(DRONE_MODEL_CANDIDATES)
+    if requested in candidate_paths:
+        start_index = candidate_paths.index(requested)
+        candidates = [str(candidate) for candidate in candidate_paths[start_index:]]
+    else:
+        candidates = [model_name]
+
+    last_error: Exception | None = None
+    for candidate in candidates:
+        try:
+            return YOLO(candidate), candidate
+        except Exception as exc:
+            last_error = exc
+
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("No YOLO model candidates available.")
 
 
 def parse_classes(value: str | None) -> list[int] | None:
     if value is None or value.strip() == "":
-        return [PERSON_CLASS_ID]
+        return None
     if value.lower() in {"none", "all", "*"}:
         return None
     return [int(part.strip()) for part in value.split(",") if part.strip()]
@@ -102,7 +124,7 @@ def extract_person_boxes(result: Any) -> list[dict[str, Any]]:
     for box in result.boxes:
         cls_id = int(box.cls.item())
         cls_name = result.names[cls_id]
-        if cls_id != PERSON_CLASS_ID and cls_name != "person":
+        if cls_name.lower() not in PERSON_CLASS_NAMES:
             continue
 
         boxes.append({
@@ -111,6 +133,49 @@ def extract_person_boxes(result: Any) -> list[dict[str, Any]]:
             "class_id": cls_id,
         })
     return boxes
+
+
+def filter_by_geometry(
+    boxes: list[dict[str, Any]],
+    frame_width: int,
+    frame_height: int,
+) -> list[dict[str, Any]]:
+    kept = []
+    for box in boxes:
+        x1, y1, x2, y2 = box["xyxy"]
+        w = x2 - x1
+        h = y2 - y1
+        area = w * h
+        aspect = h / w if w > 0 else 0
+        frame_area = frame_width * frame_height
+        relative_area = area / frame_area
+
+        # person from overhead: not too big, not too small
+        # relative area: 0.0003 to 0.015 of total frame
+        # aspect ratio: 0.4 to 3.0 (taller than wide or square)
+        if relative_area < 0.0003:
+            print(f"[GEO_FILTER] DROPPED box={box['xyxy']} "
+                  f"rel_area={relative_area:.5f} aspect={aspect:.2f}")
+            continue  # too small - noise
+        if relative_area > 0.015:
+            print(f"[GEO_FILTER] DROPPED box={box['xyxy']} "
+                  f"rel_area={relative_area:.5f} aspect={aspect:.2f}")
+            continue  # too large - building/vehicle
+        if aspect < 0.3 or aspect > 4.5:
+            print(f"[GEO_FILTER] DROPPED box={box['xyxy']} "
+                  f"rel_area={relative_area:.5f} aspect={aspect:.2f}")
+            continue  # too wide - not a person silhouette
+        kept.append(box)
+    return kept
+
+
+def enhance_with_clahe(img_bgr: np.ndarray) -> np.ndarray:
+    lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB)
+    l_channel, a_channel, b_channel = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.5, tileGridSize=(8, 8))
+    enhanced_l = clahe.apply(l_channel)
+    enhanced_lab = cv2.merge((enhanced_l, a_channel, b_channel))
+    return cv2.cvtColor(enhanced_lab, cv2.COLOR_LAB2BGR)
 
 
 def generate_tiles(frame_width: int, frame_height: int, tile_size: int = TILE_SIZE, stride: int = TILE_STRIDE) -> list[tuple[int, int, int, int]]:
@@ -180,26 +245,44 @@ def run_tiled_inference(image: Any, model: Any, frame_width: int, frame_height: 
     remapped_boxes: list[dict[str, Any]] = []
     tiled_start = time.perf_counter()
 
-    for x1, y1, x2, y2 in tiles:
-        tile = image[y1:y2, x1:x2]
-        results = model(tile, imgsz=TILE_IMGSZ, conf=TILE_CONF, classes=[PERSON_CLASS_ID])
-        result = results[0]
+    def collect_tile_boxes(source_image: Any) -> list[dict[str, Any]]:
+        collected: list[dict[str, Any]] = []
+        for x1, y1, x2, y2 in tiles:
+            tile = source_image[y1:y2, x1:x2]
+            results = model(tile, imgsz=TILE_IMGSZ, conf=TILE_CONF)
+            result = results[0]
 
-        for box in extract_person_boxes(result):
-            local_x1, local_y1, local_x2, local_y2 = box["xyxy"]
-            remapped_boxes.append({
-                **box,
-                "xyxy": [
-                    max(0.0, min(frame_width, local_x1 + x1)),
-                    max(0.0, min(frame_height, local_y1 + y1)),
-                    max(0.0, min(frame_width, local_x2 + x1)),
-                    max(0.0, min(frame_height, local_y2 + y1)),
-                ],
-            })
+            for box in extract_person_boxes(result):
+                local_x1, local_y1, local_x2, local_y2 = box["xyxy"]
+                collected.append({
+                    **box,
+                    "xyxy": [
+                        max(0.0, min(frame_width, local_x1 + x1)),
+                        max(0.0, min(frame_height, local_y1 + y1)),
+                        max(0.0, min(frame_width, local_x2 + x1)),
+                        max(0.0, min(frame_height, local_y2 + y1)),
+                    ],
+                })
+        return collected
+
+    remapped_boxes = collect_tile_boxes(image)
+    filtered = filter_by_geometry(
+        remapped_boxes, frame_width, frame_height
+    )
+    clahe_tiled_used = False
+
+    if len(filtered) < 3:
+        enhanced_image = enhance_with_clahe(image)
+        enhanced_boxes = collect_tile_boxes(enhanced_image)
+        remapped_boxes = remapped_boxes + enhanced_boxes
+        filtered = filter_by_geometry(
+            remapped_boxes, frame_width, frame_height
+        )
+        clahe_tiled_used = True
 
     tiled_time_ms = (time.perf_counter() - tiled_start) * 1000
     fusion_start = time.perf_counter()
-    nms_boxes = global_nms(remapped_boxes, NMS_IOU_THRESHOLD)
+    nms_boxes = global_nms(filtered, NMS_IOU_THRESHOLD)
     fusion_time_ms = (time.perf_counter() - fusion_start) * 1000
 
     return nms_boxes, {
@@ -210,6 +293,8 @@ def run_tiled_inference(image: Any, model: Any, frame_width: int, frame_height: 
         "tile_imgsz": TILE_IMGSZ,
         "tile_conf": TILE_CONF,
         "nms_iou_threshold": NMS_IOU_THRESHOLD,
+        "geometric_filter_applied": True,
+        "clahe_second_pass_used": clahe_tiled_used,
         "num_tiles": len(tiles),
         "detections_before_nms": len(remapped_boxes),
         "detections_after_nms": len(nms_boxes),
@@ -239,12 +324,29 @@ def run_inference_attempt(
     model: Any | None = None,
 ) -> tuple[Any, dict[str, Any]]:
     model = model or YOLO(model_name)
-    results = model(str(image_path), imgsz=imgsz, conf=conf, classes=classes)
+    results = model(str(image_path), imgsz=imgsz, conf=conf)
     return results[0], {
         "model": model_name,
         "imgsz": imgsz,
         "conf": conf,
-        "classes": classes,
+        "classes": None,
+    }
+
+
+def run_image_inference_attempt(
+    image: np.ndarray,
+    model_name: str,
+    imgsz: int,
+    conf: float,
+    model: Any | None = None,
+) -> tuple[Any, dict[str, Any]]:
+    model = model or YOLO(model_name)
+    results = model(image, imgsz=imgsz, conf=conf)
+    return results[0], {
+        "model": model_name,
+        "imgsz": imgsz,
+        "conf": conf,
+        "classes": None,
     }
 
 
@@ -272,22 +374,48 @@ def run_yolo_detection(
         raise RuntimeError(f"Could not read image: {image_path}")
 
     frame_height, frame_width = image.shape[:2]
+    long_side = max(frame_width, frame_height)
+    if imgsz == DEFAULT_DRONE_IMGSZ:
+        if long_side > 1400:
+            imgsz = 1536
+        elif long_side > 1000:
+            imgsz = 1280
+        else:
+            imgsz = 960
     out_dir.mkdir(parents=True, exist_ok=True)
 
     requested_model_name = model_name or default_drone_model()
-    classes = [PERSON_CLASS_ID] if classes is None else classes
 
     attempts: list[dict[str, Any]] = []
     model, model_name = load_yolo_model(requested_model_name)
     full_frame_start = time.perf_counter()
     result, params = run_inference_attempt(image_path, model_name, imgsz, conf, classes, model=model)
     person_boxes = extract_person_boxes(result)
+    person_boxes = filter_by_geometry(
+        person_boxes, frame_width, frame_height
+    )
     attempts.append({**params, "detections": len(person_boxes)})
+    clahe_second_pass_used = False
+
+    if len(person_boxes) < 3:
+        enhanced_image = enhance_with_clahe(image)
+        result, clahe_params = run_image_inference_attempt(enhanced_image, model_name, imgsz, conf, model=model)
+        clahe_boxes = extract_person_boxes(result)
+        clahe_boxes = filter_by_geometry(
+            clahe_boxes, frame_width, frame_height
+        )
+        person_boxes = global_nms(person_boxes + clahe_boxes, NMS_IOU_THRESHOLD)
+        attempts.append({**clahe_params, "detections": len(clahe_boxes), "preprocessing": "clahe"})
+        clahe_second_pass_used = True
+
     retry_used = False
 
     if retry_if_empty and not person_boxes:
         result, params = run_inference_attempt(image_path, model_name, RETRY_DRONE_IMGSZ, RETRY_DRONE_CONF, classes, model=model)
         person_boxes = extract_person_boxes(result)
+        person_boxes = filter_by_geometry(
+            person_boxes, frame_width, frame_height
+        )
         attempts.append({**params, "detections": len(person_boxes)})
         retry_used = True
 
@@ -300,6 +428,8 @@ def run_yolo_detection(
         "tile_imgsz": TILE_IMGSZ,
         "tile_conf": TILE_CONF,
         "nms_iou_threshold": NMS_IOU_THRESHOLD,
+        "geometric_filter_applied": True,
+        "clahe_second_pass_used": clahe_second_pass_used,
         "num_tiles": 0,
         "detections_before_nms": len(person_boxes),
         "detections_after_nms": len(person_boxes),
@@ -307,10 +437,15 @@ def run_yolo_detection(
         "fusion_time_ms": 0.0,
     }
 
-    final_boxes = person_boxes
-    full_frame_empty = len(person_boxes) == 0
-    if full_frame_empty:
-        final_boxes, tiled_metadata = run_tiled_inference(image, model, frame_width, frame_height)
+    tiled_boxes, tiled_metadata = run_tiled_inference(
+        image, model, frame_width, frame_height
+    )
+    tiled_boxes = filter_by_geometry(
+        tiled_boxes, frame_width, frame_height
+    )
+    final_boxes = global_nms(
+        person_boxes + tiled_boxes, NMS_IOU_THRESHOLD
+    )
 
     metadata = {
         "mode": "drone_demo",
@@ -361,10 +496,10 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_IMAGE,
         help=f"Path to input image (default: {DEFAULT_IMAGE})",
     )
-    parser.add_argument("--model", default=None, help="YOLO model path/name. Default prefers local yolov8s.pt, then yolov8n.pt.")
+    parser.add_argument("--model", default=None, help="YOLO model path/name. Default prefers models/drone_tactical_best.pt, then yolov8s.pt, then yolov8n.pt.")
     parser.add_argument("--imgsz", type=int, default=DEFAULT_DRONE_IMGSZ, help=f"Inference image size (default: {DEFAULT_DRONE_IMGSZ})")
     parser.add_argument("--conf", type=float, default=DEFAULT_DRONE_CONF, help=f"Confidence threshold (default: {DEFAULT_DRONE_CONF})")
-    parser.add_argument("--classes", default=str(PERSON_CLASS_ID), help="Comma-separated YOLO class IDs, 'all', or empty. Default: person only.")
+    parser.add_argument("--classes", default=None, help="Comma-separated YOLO class IDs, 'all', or empty. Kept for metadata only; person filtering is name-based.")
     parser.add_argument("--no-retry", action="store_true", help="Disable empty-result retry with larger image size and lower confidence.")
     return parser.parse_args()
 
