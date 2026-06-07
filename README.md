@@ -87,6 +87,41 @@ If `where cl` does not find `cl.exe`, use an **x64 Native Tools Command Prompt f
 .\scripts\check_cuda.ps1
 .\scripts\run_cuda_local.ps1
 ```
+Generated files:
+
+```text
+outputs/benchmark_results.csv
+outputs/risk_ranking.csv
+outputs/attention_stats.csv
+
+frontend/public/data/benchmark_results.json
+frontend/public/data/risk_ranking.json
+frontend/public/data/attention_stats.json
+```
+
+To convert the CSV files into the JSON format that the frontend expects, run:
+
+```powershell
+python scripts/csv_to_json.py
+```
+This script reads `outputs/benchmark_results.csv`, `outputs/risk_ranking.csv`, and `outputs/attention_stats.csv`, then generates the corresponding JSON files in `frontend/public/data/`. If the CUDA pipeline was run with GPU-only settings, the generated JSON files will accurately reflect those results; if it was run with CPU-only mode, the JSON files will reflect the CPU-based computation.
+
+Expected result:
+
+```text
+[OK] NVIDIA GPU detected
+[OK] nvcc detected
+[OK] Local CUDA data pipeline complete.
+```
+
+**Troubleshooting**:
+- If `nvcc` is not found, ensure CUDA Toolkit is installed and the compiler's directory is in your system's PATH.
+- If the build fails with C++ compilation errors, verify that the **Visual Studio C++ Build Tools** are installed for your version of Visual Studio.
+- Always run these commands from an x64 environment (e.g., x64 Native Tools Command Prompt for VS).
+- If `.\scripts\run_cuda_local.ps1` fails at the “Creating project directory” step, try creating the `outputs` folder manually before running the script again.
+- If `.\scripts\run_cuda_local.ps1` fails at the “Running CUDA kernel” step and claims `resqvision` does not exist (even after successful compilation), delete the `outputs\resqvision\` folder manually and retry the script.
+- If the script terminates with a segmentation fault or access violation before producing CSV output, try running the script with administrator privileges.
+
 
 The local script:
 
@@ -180,6 +215,31 @@ Outputs written to `frontend/public/data/`:
 | `detection_preview.jpg` | Annotated frame with bounding boxes |
 
 The Computer Vision page in the dashboard picks these up automatically.
+
+---
+
+### YOLO Detection Schema
+
+Both offline and live YOLO scripts write `frontend/public/data/detections.json` with the same schema:
+
+```json
+{
+  "source": "offline_image",
+  "timestamp": "2026-06-07T12:00:00Z",
+  "frame_width": 640,
+  "frame_height": 480,
+  "detections": [
+    {
+      "id": 1,
+      "class": "person",
+      "confidence": 0.95,
+      "bbox": [120, 80, 200, 340]
+    }
+  ]
+}
+```
+
+`source` is `offline_image` for `scripts/yolo_detect.py` and `live_camera` for `scripts/yolo_live.py`. Bounding boxes use `[x, y, width, height]` in pixel coordinates.
 
 ---
 

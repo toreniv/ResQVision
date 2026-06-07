@@ -38,37 +38,49 @@ def as_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def extract_detection_payload(raw: Any) -> tuple[list[dict[str, Any]], int, int]:
-    frame_width = DEFAULT_FRAME_WIDTH
-    frame_height = DEFAULT_FRAME_HEIGHT
+def extract_detection_payload(raw: Any) -> tuple[list[dict[str, Any]], int, int, str]:
+    if isinstance(raw, list):
+        print("[WARN] Legacy detections array detected. Treating it as unified YOLO schema internally.")
+        raw = {
+            "source": "legacy_array",
+            "frame_width": DEFAULT_FRAME_WIDTH,
+            "frame_height": DEFAULT_FRAME_HEIGHT,
+            "detections": raw,
+        }
 
-    if isinstance(raw, dict):
-        frame_width = int(as_float(raw.get("frame_width") or raw.get("width"), DEFAULT_FRAME_WIDTH))
-        frame_height = int(as_float(raw.get("frame_height") or raw.get("height"), DEFAULT_FRAME_HEIGHT))
-        detections = raw.get("detections") or raw.get("targets") or []
-    elif isinstance(raw, list):
-        detections = raw
-    else:
+    if not isinstance(raw, dict):
+        return [], DEFAULT_FRAME_WIDTH, DEFAULT_FRAME_HEIGHT, ""
+
+    source = str(raw.get("source") or "")
+    detections = raw.get("detections", [])
+    frame_width = int(as_float(raw.get("frame_width"), DEFAULT_FRAME_WIDTH))
+    frame_height = int(as_float(raw.get("frame_height"), DEFAULT_FRAME_HEIGHT))
+
+    if not isinstance(detections, list):
         detections = []
 
-    return [d for d in detections if isinstance(d, dict)], frame_width, frame_height
+    return [d for d in detections if isinstance(d, dict)], frame_width, frame_height, source
+
+
+def fusion_mode_from_source(source: str) -> str:
+    if source == "live_camera":
+        return "YOLO_LIVE"
+    if source == "offline_image":
+        return "YOLO_IMAGE"
+    return "YOLO_FUSION"
 
 
 def bbox_center(det: dict[str, Any]) -> tuple[float, float] | None:
-    bbox = det.get("bbox") or det.get("box")
+    bbox = det.get("bbox")
     if not isinstance(bbox, list) or len(bbox) < 4:
         return None
 
     x = as_float(bbox[0])
     y = as_float(bbox[1])
-    third = as_float(bbox[2])
-    fourth = as_float(bbox[3])
-    fmt = str(det.get("bbox_format") or det.get("format") or "xywh").lower()
+    width = as_float(bbox[2])
+    height = as_float(bbox[3])
 
-    if fmt in {"xyxy", "x1y1x2y2"}:
-        return (x + third) / 2, (y + fourth) / 2
-
-    return x + third / 2, y + fourth / 2
+    return x + width / 2, y + height / 2
 
 
 def risk_from_entry(entry: Any) -> float | None:
@@ -98,12 +110,12 @@ def recommended_action(risk_score: float) -> str:
 
 
 def detection_class(det: dict[str, Any]) -> str:
-    return str(det.get("class") or det.get("label") or det.get("name") or "").lower()
+    return str(det.get("class") or "").lower()
 
 
 def main() -> int:
     raw_detections = load_json(DETECTIONS_PATH, None)
-    detections, frame_width, frame_height = extract_detection_payload(raw_detections)
+    detections, frame_width, frame_height, detection_source = extract_detection_payload(raw_detections)
 
     if not detections:
         write_fusion("NO_DATA", [])
@@ -139,9 +151,9 @@ def main() -> int:
             "id": str(target_id),
             "source": "YOLO",
             "detection_index": index,
-            "class": det.get("class") or det.get("label") or "person",
+            "class": det.get("class") or "person",
             "confidence": confidence,
-            "bbox": det.get("bbox") or det.get("box"),
+            "bbox": det.get("bbox"),
             "x_map": (center_x / max(frame_width, 1)) * MAP_SIZE,
             "y_map": (center_y / max(frame_height, 1)) * MAP_SIZE,
             "risk_score": risk_score,
@@ -160,7 +172,7 @@ def main() -> int:
         target["priority"] = priority
         target["rank"] = priority
 
-    write_fusion("YOLO_LIVE", targets)
+    write_fusion(fusion_mode_from_source(detection_source), targets)
     return 0
 
 

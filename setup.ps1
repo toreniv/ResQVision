@@ -20,6 +20,10 @@ if (-not $pythonCommand) {
     throw "Python 3 was not found. Install Python 3 and enable 'Add python.exe to PATH', then rerun .\setup.ps1."
 }
 
+if (-not (Get-Command npm -ErrorAction SilentlyContinue)) {
+    throw "npm was not found. Install Node.js LTS, then rerun .\setup.ps1."
+}
+
 # ---------------------------------------------------------------------------
 # 1. Python virtual environment
 # ---------------------------------------------------------------------------
@@ -44,6 +48,7 @@ Write-Host "[OK] Virtual environment active." -ForegroundColor Green
 # 3. Install Python dependencies
 # ---------------------------------------------------------------------------
 Write-Host "[3/5] Installing Python dependencies from requirements.txt ..." -ForegroundColor Yellow
+& ".\$venvDir\Scripts\python.exe" -m pip install --upgrade pip setuptools wheel --quiet
 & ".\$venvDir\Scripts\python.exe" -m pip install -r requirements.txt --quiet
 Write-Host "[OK] Python dependencies installed." -ForegroundColor Green
 

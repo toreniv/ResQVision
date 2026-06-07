@@ -1,13 +1,52 @@
-[
-  {
-    "id": 1,
-    "class": "person",
-    "confidence": 0.87,
-    "bbox": [
-      6,
-      0,
-      624,
-      479
-    ]
-  }
-]
+{
+  "source": "offline_image",
+  "timestamp": "2026-06-07T07:56:37.711001Z",
+  "frame_width": 1536,
+  "frame_height": 1024,
+  "detections": [
+    {
+      "id": 1,
+      "class": "person",
+      "confidence": 0.91,
+      "bbox": [
+        214,
+        138,
+        296,
+        818
+      ]
+    },
+    {
+      "id": 2,
+      "class": "person",
+      "confidence": 0.9,
+      "bbox": [
+        571,
+        182,
+        197,
+        536
+      ]
+    },
+    {
+      "id": 3,
+      "class": "person",
+      "confidence": 0.89,
+      "bbox": [
+        898,
+        272,
+        114,
+        318
+      ]
+    },
+    {
+      "id": 4,
+      "class": "person",
+      "confidence": 0.89,
+      "bbox": [
+        1008,
+        134,
+        297,
+        776
+      ]
+    }
+  ]
+}

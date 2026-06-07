@@ -1,6 +1,7 @@
 # Requirements: pip install ultralytics opencv-python
 
 import argparse
+from datetime import datetime, timezone
 import json
 import pathlib
 import sys
@@ -46,6 +47,13 @@ if not image_path.exists():
 
 print(f"[ResQVision] Input: {image_path}")
 
+image = cv2.imread(str(image_path))
+if image is None:
+    print(f"[ERROR] Could not read image: {image_path}")
+    sys.exit(1)
+
+frame_height, frame_width = image.shape[:2]
+
 # ---------------------------------------------------------------------------
 # Output directory
 # ---------------------------------------------------------------------------
@@ -90,9 +98,18 @@ for box in result.boxes:
 # ---------------------------------------------------------------------------
 # Save detections.json
 # ---------------------------------------------------------------------------
+payload = {
+    "source": "offline_image",
+    "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+    "frame_width": frame_width,
+    "frame_height": frame_height,
+    "detections": detections,
+}
+
 json_path = out_dir / "detections.json"
 with open(json_path, "w", encoding="utf-8") as f:
-    json.dump(detections, f, indent=2)
+    json.dump(payload, f, indent=2)
+    f.write("\n")
 
 if detections:
     print(f"[ResQVision] Detected {len(detections)} person(s)")

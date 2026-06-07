@@ -5,6 +5,7 @@ $CheckCuda = Join-Path $ProjectRoot "scripts\check_cuda.ps1"
 $RunLocal = Join-Path $ProjectRoot "scripts\run_cuda_local.ps1"
 $ImportColab = Join-Path $ProjectRoot "scripts\import_colab_outputs.ps1"
 $FuseYolo = Join-Path $ProjectRoot "scripts\fuse_yolo_to_tactical.py"
+$DataDir = Join-Path $ProjectRoot "frontend\public\data"
 
 Write-Host "ResQVision data pipeline"
 Write-Host "------------------------"
@@ -43,13 +44,39 @@ if ($CompletedThroughFallback) {
 }
 
 $ExitBeforeFusion = $PipelineExitCode
+New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+
+$VenvPython = Join-Path $ProjectRoot "venv\Scripts\python.exe"
+$PathPython = Get-Command python -ErrorAction SilentlyContinue
+$PathPy = Get-Command py -ErrorAction SilentlyContinue
+$PlatformIoPython = Join-Path "C:\Users\$env:USERNAME" ".platformio\python3\python.exe"
+
+if (Test-Path $VenvPython) {
+    $Python = $VenvPython
+} elseif ($PathPython) {
+    $Python = $PathPython.Source
+} elseif ($PathPy) {
+    $Python = $PathPy.Source
+} elseif (Test-Path $PlatformIoPython) {
+    $Python = $PlatformIoPython
+} else {
+    $Python = $null
+}
+
 Write-Host ""
 Write-Host "[INFO] Running YOLO tactical fusion."
-python $FuseYolo
-if ($LASTEXITCODE -eq 0) {
-    Write-Host "[OK] Tactical fusion artifact refreshed."
+
+if ($Python) {
+    Write-Host "[INFO] Using Python executable: $Python"
+    & $Python $FuseYolo
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "[OK] Tactical fusion artifact refreshed."
+    } else {
+        Write-Host "[WARN] Tactical fusion failed. The frontend will keep using risk ranking or fallback data."
+    }
 } else {
-    Write-Host "[WARN] Tactical fusion failed. The frontend will keep using risk ranking or fallback data."
+    Write-Host "[WARN] Python was not found. Skipping tactical fusion."
+    Write-Host "[WARN] The frontend will keep using risk ranking or fallback data."
 }
 $PipelineExitCode = $ExitBeforeFusion
 

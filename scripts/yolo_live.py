@@ -1,5 +1,6 @@
 # Requirements: pip install ultralytics opencv-python
 
+from datetime import datetime, timezone
 import json
 import pathlib
 import time
@@ -54,6 +55,8 @@ try:
             time.sleep(0.1)
             continue
 
+        frame_height, frame_width = frame.shape[:2]
+
         # --- Inference ---
         results = model(frame, verbose=False)
         result  = results[0]
@@ -81,10 +84,19 @@ try:
             })
             detection_id += 1
 
+        payload = {
+            "source": "live_camera",
+            "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "frame_width": frame_width,
+            "frame_height": frame_height,
+            "detections": detections,
+        }
+
         # --- Atomic write: detections.json ---
         tmp_json = detections_path.with_suffix(".tmp")
         with open(tmp_json, "w", encoding="utf-8") as f:
-            json.dump(detections, f, indent=2)
+            json.dump(payload, f, indent=2)
+            f.write("\n")
         tmp_json.replace(detections_path)
 
         # --- Annotated frame ---
