@@ -319,6 +319,30 @@ These files are generated demo artifacts and should not be committed.
 
 ---
 
+### Building a Fine-Tuning Dataset
+
+The Computer Vision workflow can accumulate local YOLO training samples from operator-confirmed soldier positions.
+
+Workflow:
+
+1. Upload a drone image.
+2. Run YOLO.
+3. Correct detections manually by placing soldier markers.
+4. Click `Save Tactical Tags` to store the tagged frame in the dataset builder.
+5. Click `Export Training Dataset` to create `dataset.zip`.
+6. Upload `dataset.zip` to `ResQVision_Colab_Workflow.ipynb`.
+7. Train the VisDrone-based model in Colab.
+8. Download `best.pt`.
+9. Place `best.pt` at:
+
+```text
+models/drone_tactical_best.pt
+```
+
+The local dataset builder writes accumulated samples under `temp_uploads/dataset_builder/` and exports a YOLO dataset ZIP with `data.yaml`, `images/train`, `images/val`, `labels/train`, and `labels/val`.
+
+---
+
 ### YOLO Live Detection
 
 ```bash

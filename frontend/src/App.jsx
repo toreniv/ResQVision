@@ -701,6 +701,8 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
   const [selectedMarkerId, setSelectedMarkerId] = useState(null);
   const [isRunningYolo, setIsRunningYolo] = useState(false);
   const [isSavingMarkers, setIsSavingMarkers] = useState(false);
+  const [isExportingDataset, setIsExportingDataset] = useState(false);
+  const [datasetExport, setDatasetExport] = useState(null);
   const [backendError, setBackendError] = useState(null);
   const [serverStatus, setServerStatus] = useState(null);
   const [yoloNoDetections, setYoloNoDetections] = useState(false);
@@ -929,6 +931,28 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
     }
   };
 
+  const exportTrainingDataset = async () => {
+    setIsExportingDataset(true);
+    setBackendError(null);
+    setDatasetExport(null);
+
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/dataset/export', {
+        method: 'POST',
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        throw new Error(result.message || 'Dataset export failed');
+      }
+      setDatasetExport(result);
+      setServerStatus(`Dataset exported successfully. Images: ${result.images}. Labels: ${result.labels}.`);
+    } catch (error) {
+      setBackendError(error.message || 'Local YOLO backend is not running.');
+    } finally {
+      setIsExportingDataset(false);
+    }
+  };
+
   return (
     <section className="cv-page">
       <PageHeader
@@ -1035,6 +1059,9 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
               <button type="button" onClick={saveManualMarkers} disabled={isSavingMarkers}>
                 {isSavingMarkers ? 'Saving...' : 'Save Tactical Tags'}
               </button>
+              <button type="button" onClick={exportTrainingDataset} disabled={isExportingDataset}>
+                {isExportingDataset ? 'Exporting...' : 'Export Training Dataset'}
+              </button>
             </div>
             {backendError ? (
               <div className="cv-backend-error">
@@ -1045,6 +1072,16 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
               </div>
             ) : null}
             {serverStatus ? <div className="cv-server-status">{serverStatus}</div> : null}
+            {datasetExport ? (
+              <div className="cv-server-status">
+                <strong>Dataset exported successfully.</strong>
+                <span>Images: {datasetExport.images}</span>
+                <span>Labels: {datasetExport.labels}</span>
+                <a href="http://127.0.0.1:8000/api/dataset/download" download={datasetExport.zip_path}>
+                  Download {datasetExport.zip_path}
+                </a>
+              </div>
+            ) : null}
             {yoloNoDetections ? (
               <div className="cv-yolo-empty">
                 YOLO did not detect soldiers automatically in this overhead frame. Use Manual Tactical Tagging to mark soldiers and link them to ResQBand IDs.

@@ -1765,6 +1765,12 @@ th {
   font-weight: 800;
 }
 
+.cv-server-status a {
+  width: fit-content;
+  color: #0f766e;
+  text-decoration: underline;
+}
+
 .cv-yolo-empty {
   border: 1px solid #fed7aa;
   color: #9a3412;
