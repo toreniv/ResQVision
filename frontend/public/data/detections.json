@@ -1,6 +1,6 @@
 {
   "source": "offline_image",
-  "timestamp": "2026-06-08T04:57:17.897433Z",
+  "timestamp": "2026-06-08T05:53:16.387706Z",
   "frame_width": 1536,
   "frame_height": 1024,
   "metadata": {
@@ -21,7 +21,7 @@
     ],
     "full_frame_attempt": true,
     "final_detection_stage": "full_frame",
-    "full_frame_time_ms": 1021.25,
+    "full_frame_time_ms": 891.19,
     "sliced_inference_used": false,
     "tiled_inference_used": false,
     "tile_size": 640,
