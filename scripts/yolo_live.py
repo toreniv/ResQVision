@@ -29,6 +29,24 @@ out_dir.mkdir(parents=True, exist_ok=True)
 detections_path = out_dir / "detections.json"
 preview_path    = out_dir / "detection_preview.jpg"
 
+MODEL_CANDIDATES = (
+    pathlib.Path("models/drone_tactical_best.pt"),
+    pathlib.Path("yolov8s.pt"),
+    pathlib.Path("yolov8n.pt"),
+)
+
+
+def load_preferred_model():
+    last_error = None
+    for model_path in MODEL_CANDIDATES:
+        try:
+            model = YOLO(str(model_path))
+            print(f"[ResQVision LIVE] Model: {model_path}")
+            return model
+        except Exception as exc:
+            last_error = exc
+    raise last_error
+
 # ---------------------------------------------------------------------------
 # Webcam
 # ---------------------------------------------------------------------------
@@ -40,7 +58,7 @@ if not cap.isOpened():
 # ---------------------------------------------------------------------------
 # Model
 # ---------------------------------------------------------------------------
-model = YOLO("yolov8n.pt")  # downloads weights on first run
+model = load_preferred_model()
 
 print("[ResQVision LIVE] Starting. Press 'q' in the preview window to quit.")
 

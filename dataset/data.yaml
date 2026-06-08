@@ -1,5 +1,0 @@
-path: C:/Users/nivt/Documents/ResQVision/dataset
-train: images/train
-val: images/val
-nc: 1
-names: ['person']

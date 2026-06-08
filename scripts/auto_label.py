@@ -2,8 +2,26 @@ import cv2, pathlib
 from ultralytics import YOLO
 
 PERSON_CLASSES = {'person', 'pedestrian', 'people'}
+MODEL_CANDIDATES = (
+    pathlib.Path('models/drone_tactical_best.pt'),
+    pathlib.Path('yolov8s.pt'),
+    pathlib.Path('yolov8n.pt'),
+)
 
-model = YOLO('models/drone_tactical_best.pt')
+
+def load_preferred_model():
+    last_error = None
+    for model_path in MODEL_CANDIDATES:
+        try:
+            model = YOLO(str(model_path))
+            print(f'[ResQVision] Auto-label model: {model_path}')
+            return model
+        except Exception as exc:
+            last_error = exc
+    raise last_error
+
+
+model = load_preferred_model()
 frames_dir = pathlib.Path('frames')
 labels_dir = pathlib.Path('dataset/labels/train')
 images_dir = pathlib.Path('dataset/images/train')

@@ -343,6 +343,50 @@ The local dataset builder writes accumulated samples under `temp_uploads/dataset
 
 ---
 
+### Local GPU and Colab YOLO Workflows
+
+#### A. Local GPU inference workflow
+
+Start the local YOLO backend:
+
+```powershell
+venv\Scripts\python.exe scripts\yolo_server.py
+```
+
+Start the frontend:
+
+```powershell
+cd frontend
+npm run dev
+```
+
+The local backend uses PyTorch/Ultralytics and will use a local GPU if one is available. YOLO model priority is:
+
+1. `models/drone_tactical_best.pt`
+2. `yolov8s.pt`
+3. `yolov8n.pt`
+
+#### B. No-local-GPU Colab training workflow
+
+1. Upload drone images in the Computer Vision page.
+2. Run YOLO and/or manually tag soldiers.
+3. Export `dataset.zip` from the Computer Vision page.
+4. Upload `dataset.zip` to Colab.
+5. Train on a Colab GPU.
+6. Download `best.pt`.
+7. Rename or copy it to:
+
+```text
+models/drone_tactical_best.pt
+```
+
+8. Restart the local YOLO backend.
+9. Future local inference uses the fine-tuned model automatically.
+
+Colab is for training/fine-tuning only. It is not a live backend, and the frontend/backend do not automatically start Colab.
+
+---
+
 ### YOLO Live Detection
 
 ```bash

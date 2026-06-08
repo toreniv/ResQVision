@@ -107,3 +107,22 @@ yarn-error.log*
 temp/
 tmp/
 *.tmp
+
+# =========================
+# Training datasets / generated ML data
+# =========================
+
+dataset/
+dataset.zip
+frames/
+*.mp4
+
+# Dataset builder / exports
+temp_uploads/
+dataset_builder/
+dataset_export/
+
+# YOLO / Ultralytics
+*.pt
+runs/
+datasets/
