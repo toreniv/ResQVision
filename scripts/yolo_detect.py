@@ -28,7 +28,7 @@ except ImportError:
 DEFAULT_IMAGE = "scripts/sample_input.jpg"
 DEFAULT_DATA_DIR = pathlib.Path("frontend/public/data")
 DEFAULT_DRONE_IMGSZ = 1280
-DEFAULT_DRONE_CONF = 0.10
+DEFAULT_DRONE_CONF = 0.40
 RETRY_DRONE_IMGSZ = 1920
 RETRY_DRONE_CONF = 0.10
 PERSON_CLASS_NAMES = {"person", "pedestrian", "people"}
@@ -36,8 +36,8 @@ TILE_SIZE = 640
 TILE_OVERLAP = 0.50
 TILE_STRIDE = int(TILE_SIZE * (1 - TILE_OVERLAP))
 TILE_IMGSZ = 960
-TILE_CONF = 0.02
-NMS_IOU_THRESHOLD = 0.60
+TILE_CONF = 0.25
+NMS_IOU_THRESHOLD = 0.45
 MODEL_DIR = pathlib.Path("models")
 DRONE_MODEL_CANDIDATES = (
     MODEL_DIR / "drone_tactical_best.pt",

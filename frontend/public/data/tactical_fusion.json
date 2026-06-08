@@ -6,22 +6,22 @@
       "source": "YOLO",
       "detection_index": 0,
       "class": "person",
-      "confidence": 0.44,
+      "confidence": 0.24,
       "bbox": [
-        178,
-        313,
-        102,
-        138
+        903,
+        650,
+        17,
+        27
       ],
       "image_center": [
-        229.0,
-        382.0
+        911.0,
+        663.0
       ],
-      "x_map": 475.1,
-      "y_map": 594.1,
+      "x_map": 593.1,
+      "y_map": 647.5,
       "map_position": [
-        475.1,
-        594.1
+        593.1,
+        647.5
       ],
       "localization_mode": "visual_relative",
       "localization_label": "GPS-Denied Visual Fix",
@@ -38,22 +38,22 @@
       "source": "YOLO",
       "detection_index": 1,
       "class": "person",
-      "confidence": 0.33,
+      "confidence": 0.13,
       "bbox": [
-        240,
-        188,
-        56,
-        90
+        761,
+        738,
+        16,
+        30
       ],
       "image_center": [
-        268.0,
-        233.0
+        769.0,
+        753.0
       ],
-      "x_map": 556.0,
-      "y_map": 362.4,
+      "x_map": 500.7,
+      "y_map": 735.4,
       "map_position": [
-        556.0,
-        362.4
+        500.7,
+        735.4
       ],
       "localization_mode": "visual_relative",
       "localization_label": "GPS-Denied Visual Fix",
@@ -70,22 +70,22 @@
       "source": "YOLO",
       "detection_index": 2,
       "class": "person",
-      "confidence": 0.19,
+      "confidence": 0.11,
       "bbox": [
-        240,
-        188,
-        101,
-        132
+        868,
+        626,
+        12,
+        16
       ],
       "image_center": [
-        290.0,
-        254.0
+        874.0,
+        634.0
       ],
-      "x_map": 601.7,
-      "y_map": 395.0,
+      "x_map": 569.0,
+      "y_map": 619.1,
       "map_position": [
-        601.7,
-        395.0
+        569.0,
+        619.1
       ],
       "localization_mode": "visual_relative",
       "localization_label": "GPS-Denied Visual Fix",

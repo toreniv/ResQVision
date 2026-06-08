@@ -1,73 +1,84 @@
 {
   "source": "offline_image",
-  "timestamp": "2026-06-07T12:57:53.164020Z",
-  "frame_width": 482,
-  "frame_height": 643,
+  "timestamp": "2026-06-08T04:57:17.897433Z",
+  "frame_width": 1536,
+  "frame_height": 1024,
   "metadata": {
     "mode": "drone_demo",
-    "model": "yolov8s.pt",
-    "imgsz": 1280,
-    "conf": 0.15,
-    "classes": [
-      0
-    ],
+    "model": "models\\drone_tactical_best.pt",
+    "imgsz": 1536,
+    "conf": 0.1,
+    "classes": null,
     "retry_used": false,
     "attempts": [
       {
-        "model": "yolov8s.pt",
-        "imgsz": 1280,
-        "conf": 0.15,
-        "classes": [
-          0
-        ],
+        "model": "models\\drone_tactical_best.pt",
+        "imgsz": 1536,
+        "conf": 0.1,
+        "classes": null,
         "detections": 3
       }
-    ]
+    ],
+    "full_frame_attempt": true,
+    "final_detection_stage": "full_frame",
+    "full_frame_time_ms": 1021.25,
+    "sliced_inference_used": false,
+    "tiled_inference_used": false,
+    "tile_size": 640,
+    "overlap": 0.25,
+    "tile_imgsz": 960,
+    "tile_conf": 0.1,
+    "nms_iou_threshold": 0.45,
+    "num_tiles": 0,
+    "detections_before_nms": 3,
+    "detections_after_nms": 3,
+    "tiled_time_ms": 0.0,
+    "fusion_time_ms": 0.0
   },
   "detections": [
     {
       "id": 1,
       "class": "person",
-      "confidence": 0.44,
+      "confidence": 0.24,
       "bbox": [
-        178,
-        313,
-        102,
-        138
+        903,
+        650,
+        17,
+        27
       ],
       "center": [
-        229,
-        382
+        911,
+        663
       ]
     },
     {
       "id": 2,
       "class": "person",
-      "confidence": 0.33,
+      "confidence": 0.13,
       "bbox": [
-        240,
-        188,
-        56,
-        90
+        761,
+        738,
+        16,
+        30
       ],
       "center": [
-        268,
-        233
+        769,
+        753
       ]
     },
     {
       "id": 3,
       "class": "person",
-      "confidence": 0.19,
+      "confidence": 0.11,
       "bbox": [
-        240,
-        188,
-        101,
-        132
+        868,
+        626,
+        12,
+        16
       ],
       "center": [
-        290,
-        254
+        874,
+        634
       ]
     }
   ]
