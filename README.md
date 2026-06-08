@@ -316,6 +316,80 @@ The local server writes generated artifacts to `frontend/public/data/`:
 * `tactical_fusion.json`
 
 These files are generated demo artifacts and should not be committed.
+---
+## Recommended Workflow
+
+### Scenario A - I have a local GPU
+
+1. Start the local YOLO backend:
+
+```powershell
+venv\Scripts\python.exe scripts\yolo_server.py
+```
+
+2. Start the frontend:
+
+```powershell
+cd frontend
+npm run dev
+```
+
+3. Upload drone images in the Computer Vision page.
+
+4. Run YOLO locally.
+
+5. Optionally correct detections with Manual Tactical Tagging.
+
+6. Use Tactical Command and Analytics normally.
+
+No Colab is required.
+
+---
+
+### Scenario B - I do NOT have a local GPU
+
+1. Start the frontend and local backend normally.
+
+2. Upload drone images in the Computer Vision page.
+
+3. Run YOLO and manually correct soldier locations if needed.
+
+4. Click **Export Training Dataset**.
+
+5. Download the generated `dataset.zip`.
+
+6. Open `ResQVision_Colab_Workflow.ipynb` in Google Colab.
+
+7. Upload `dataset.zip`.
+
+8. Train the model on the Colab GPU.
+
+9. Download the generated `best.pt`.
+
+10. Place it locally as:
+
+```text
+models/drone_tactical_best.pt
+```
+
+11. Restart the local YOLO backend.
+
+From this point onward, local inference automatically uses the fine-tuned model.
+
+---
+
+### Important
+
+Google Colab is used only for training and fine-tuning.
+
+The frontend does not send images to Colab.
+
+The backend does not use Colab as a live inference server.
+
+All inference continues to run locally through `scripts/yolo_server.py`.
+
+
+
 
 ---
 

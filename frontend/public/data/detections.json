@@ -1,84 +1,206 @@
 {
   "source": "offline_image",
-  "timestamp": "2026-06-08T05:53:16.387706Z",
+  "timestamp": "2026-06-08T07:53:51.027690Z",
   "frame_width": 1536,
   "frame_height": 1024,
   "metadata": {
     "mode": "drone_demo",
     "model": "models\\drone_tactical_best.pt",
-    "imgsz": 1536,
+    "imgsz": 1920,
     "conf": 0.1,
     "classes": null,
-    "retry_used": false,
+    "retry_used": true,
     "attempts": [
       {
         "model": "models\\drone_tactical_best.pt",
         "imgsz": 1536,
+        "conf": 0.4,
+        "classes": null,
+        "detections": 0
+      },
+      {
+        "model": "models\\drone_tactical_best.pt",
+        "imgsz": 1536,
+        "conf": 0.4,
+        "classes": null,
+        "detections": 0,
+        "preprocessing": "clahe"
+      },
+      {
+        "model": "models\\drone_tactical_best.pt",
+        "imgsz": 1920,
         "conf": 0.1,
         "classes": null,
-        "detections": 3
+        "detections": 12
       }
     ],
     "full_frame_attempt": true,
-    "final_detection_stage": "full_frame",
-    "full_frame_time_ms": 891.19,
-    "sliced_inference_used": false,
-    "tiled_inference_used": false,
+    "final_detection_stage": "tiled",
+    "full_frame_time_ms": 2696.56,
+    "sliced_inference_used": true,
+    "tiled_inference_used": true,
     "tile_size": 640,
-    "overlap": 0.25,
+    "overlap": 0.5,
     "tile_imgsz": 960,
-    "tile_conf": 0.1,
+    "tile_conf": 0.25,
     "nms_iou_threshold": 0.45,
-    "num_tiles": 0,
-    "detections_before_nms": 3,
-    "detections_after_nms": 3,
-    "tiled_time_ms": 0.0,
-    "fusion_time_ms": 0.0
+    "geometric_filter_applied": true,
+    "clahe_second_pass_used": true,
+    "num_tiles": 12,
+    "detections_before_nms": 30,
+    "detections_after_nms": 2,
+    "tiled_time_ms": 9272.46,
+    "fusion_time_ms": 0.35
   },
   "detections": [
     {
       "id": 1,
       "class": "person",
-      "confidence": 0.24,
+      "confidence": 0.67,
       "bbox": [
-        903,
-        650,
-        17,
-        27
+        805,
+        640,
+        25,
+        42
       ],
       "center": [
-        911,
-        663
+        817,
+        661
       ]
     },
     {
       "id": 2,
       "class": "person",
-      "confidence": 0.13,
+      "confidence": 0.55,
       "bbox": [
-        761,
-        738,
-        16,
-        30
+        702,
+        762,
+        14,
+        38
       ],
       "center": [
-        769,
-        753
+        709,
+        781
       ]
     },
     {
       "id": 3,
       "class": "person",
-      "confidence": 0.11,
+      "confidence": 0.43,
       "bbox": [
-        868,
-        626,
-        12,
-        16
+        764,
+        717,
+        18,
+        50
       ],
       "center": [
-        874,
-        634
+        773,
+        742
+      ]
+    },
+    {
+      "id": 4,
+      "class": "person",
+      "confidence": 0.41,
+      "bbox": [
+        756,
+        699,
+        15,
+        33
+      ],
+      "center": [
+        763,
+        715
+      ]
+    },
+    {
+      "id": 5,
+      "class": "person",
+      "confidence": 0.24,
+      "bbox": [
+        744,
+        720,
+        22,
+        42
+      ],
+      "center": [
+        755,
+        741
+      ]
+    },
+    {
+      "id": 6,
+      "class": "person",
+      "confidence": 0.17,
+      "bbox": [
+        857,
+        626,
+        24,
+        48
+      ],
+      "center": [
+        869,
+        650
+      ]
+    },
+    {
+      "id": 7,
+      "class": "person",
+      "confidence": 0.16,
+      "bbox": [
+        865,
+        656,
+        17,
+        50
+      ],
+      "center": [
+        873,
+        681
+      ]
+    },
+    {
+      "id": 8,
+      "class": "person",
+      "confidence": 0.14,
+      "bbox": [
+        901,
+        649,
+        19,
+        31
+      ],
+      "center": [
+        910,
+        664
+      ]
+    },
+    {
+      "id": 9,
+      "class": "person",
+      "confidence": 0.14,
+      "bbox": [
+        976,
+        706,
+        20,
+        42
+      ],
+      "center": [
+        986,
+        727
+      ]
+    },
+    {
+      "id": 10,
+      "class": "person",
+      "confidence": 0.14,
+      "bbox": [
+        943,
+        652,
+        17,
+        30
+      ],
+      "center": [
+        951,
+        667
       ]
     }
   ]

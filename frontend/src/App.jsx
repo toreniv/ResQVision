@@ -900,6 +900,19 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
     setServerStatus(null);
 
     try {
+      if (selectedImageFile) {
+        try {
+          const formData = new FormData();
+          formData.append('image', selectedImageFile);
+          await fetch('http://127.0.0.1:8000/api/yolo/upload', {
+            method: 'POST',
+            body: formData,
+          });
+        } catch {
+          // Marker saving should still work even if the optional upload/YOLO pass fails.
+        }
+      }
+
       const markers = manualDronePoints.map((point) => ({
         source: 'MANUAL_TAG',
         soldier_id: point.soldier_id ?? '',
@@ -922,7 +935,12 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
       if (!response.ok || !result.ok) {
         throw new Error(result.message || 'Marker save failed');
       }
-      setServerStatus(`Saved ${result.markers} manual marker${result.markers === 1 ? '' : 's'} and refreshed fusion.`);
+      const sample = result.dataset_sample;
+      if (sample?.created) {
+        setServerStatus(`Training sample added: ${sample.frame} with ${sample.labels} label${sample.labels === 1 ? '' : 's'}.`);
+      } else {
+        setServerStatus('Markers saved, but no training sample was added. Upload an image and run YOLO or save again.');
+      }
       refreshTacticalData?.();
     } catch (error) {
       setBackendError(error.message || 'Local YOLO backend is not running.');

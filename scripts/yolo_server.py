@@ -101,12 +101,14 @@ def marker_to_yolo_label(marker: dict[str, Any], frame_width: int, frame_height:
 
 
 def save_dataset_builder_sample(markers: list[dict[str, Any]]) -> dict[str, Any]:
-    if not markers or not UPLOAD_IMAGE_PATH.exists():
-        return {"created": False, "labels": 0}
+    if not markers:
+        return {"created": False, "labels": 0, "reason": "no_markers"}
+    if not UPLOAD_IMAGE_PATH.exists():
+        return {"created": False, "labels": 0, "reason": "missing_uploaded_image"}
 
     image = cv2.imread(str(UPLOAD_IMAGE_PATH))
     if image is None:
-        return {"created": False, "labels": 0}
+        return {"created": False, "labels": 0, "reason": "image_decode_failed"}
 
     frame_height, frame_width = image.shape[:2]
     label_lines = [
@@ -114,7 +116,7 @@ def save_dataset_builder_sample(markers: list[dict[str, Any]]) -> dict[str, Any]
         if (label := marker_to_yolo_label(marker, frame_width, frame_height)) is not None
     ]
     if not label_lines:
-        return {"created": False, "labels": 0}
+        return {"created": False, "labels": 0, "reason": "no_valid_labels"}
 
     frame_id = next_dataset_frame_id()
     DATASET_BUILDER_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
@@ -144,6 +146,15 @@ def export_dataset_zip() -> dict[str, Any]:
         (dataset_root / "labels" / split).mkdir(parents=True, exist_ok=True)
 
     total = len(paired_samples)
+    if total == 0:
+        return {
+            "ok": False,
+            "message": "No dataset builder samples found. Save tactical tags after uploading an image first.",
+            "images": 0,
+            "labels": 0,
+            "zip_path": DATASET_ZIP_PATH.name,
+        }
+
     val_count = max(1, round(total * 0.2)) if total > 1 else 0
     train_count = total - val_count
 
