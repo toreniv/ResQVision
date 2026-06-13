@@ -126,3 +126,83 @@ dataset_export/
 *.pt
 runs/
 datasets/
+
+# =========================
+
+# ResQVision generated data / local artifacts
+
+# =========================
+
+# Raw and processed video frames
+
+frames/
+frames_deduped/
+
+# Draft assisted-labeling outputs
+
+dataset_draft/
+dataset_draft_old/
+review_candidates/
+
+# Approved / backup datasets that should not be committed by accident
+
+dataset_approved_v2/
+dataset_legacy_backup/
+dataset_backup/
+dataset_old/
+
+# Extracted / exported datasets
+
+dataset_extracted/
+dataset_export/
+dataset_exports/
+dataset_zip/
+*.zip
+
+# Local output folders
+
+outputs/
+output/
+reports/generated/
+
+# Model weights and converted engines
+
+models/*.pt
+models/*.onnx
+models/*.engine
+models/*.bin
+models/*.weights
+
+# YOLO/Ultralytics training outputs
+
+runs/
+runs_backup/
+wandb/
+mlruns/
+
+# Local benchmark scratch outputs
+
+sweep_results.md
+benchmark_presets.md
+benchmark_manual.md
+aerial_detection_benchmark.csv
+
+# Antigravity / Gemini scratch workspace
+
+.gemini/
+.antigravity/
+
+# Large media files
+
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+
+# Generated preview images
+
+*detection_preview*.jpg
+*detection_preview*.png
+*overlay*.jpg
+*overlay*.png

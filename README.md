@@ -417,6 +417,69 @@ The local dataset builder writes accumulated samples under `temp_uploads/dataset
 
 ---
 
+### Building a Reliable Fine-Tuning Dataset
+
+Auto-labeling creates draft labels only. Always run `scripts/review_dataset.py` before training. Training on unreviewed auto-labels may degrade model performance because a model trained on its own mistakes learns its own mistakes.
+
+Pipeline:
+
+```text
+video
+-> extract frames
+-> deduplicate frames
+-> auto-label draft frames
+-> manually review / approve
+-> prepare train/val split
+-> verify
+-> zip
+-> Colab
+```
+
+Create draft labels from one or more videos:
+
+```powershell
+python scripts/build_dataset.py --videos soldiers_drill.mp4
+```
+
+This runs:
+
+1. `scripts/extract_frames.py --videos ...`
+2. `scripts/dedup_frames.py`
+3. `scripts/auto_label.py`
+
+It then stops. Manual review is required before finalization.
+
+Review draft labels:
+
+```powershell
+python scripts/review_dataset.py
+```
+
+Review keys:
+
+* `a` approve frame and labels
+* `s` skip frame
+* `e` approve as background with an empty label file
+* `q` quit and save progress
+
+Finalize after review:
+
+```powershell
+python scripts/finalize_dataset.py
+```
+
+Finalization runs `prepare_dataset.py`, requires `verify_dataset.py` to pass, and creates `dataset.zip` for Colab.
+
+Generated folders:
+
+* `frames/` - extracted frames grouped by video name
+* `frames_deduped/` - deduplicated frames
+* `dataset_draft/` - unreviewed draft labels and `manifest.json`
+* `dataset/` - manually approved frames only
+* `dataset.zip` - Colab-ready YOLO dataset
+
+---
+
 ### Local GPU and Colab YOLO Workflows
 
 #### A. Local GPU inference workflow

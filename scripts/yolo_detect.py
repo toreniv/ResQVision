@@ -31,7 +31,7 @@ DEFAULT_DRONE_IMGSZ = 1280
 DEFAULT_DRONE_CONF = 0.40
 RETRY_DRONE_IMGSZ = 1920
 RETRY_DRONE_CONF = 0.10
-PERSON_CLASS_NAMES = {"person", "pedestrian", "people"}
+PERSON_CLASS_NAMES = {"person", "pedestrian", "people", "soldier"}
 TILE_SIZE = 640
 TILE_OVERLAP = 0.50
 TILE_STRIDE = int(TILE_SIZE * (1 - TILE_OVERLAP))
@@ -41,7 +41,10 @@ NMS_IOU_THRESHOLD = 0.45
 MODEL_DIR = pathlib.Path("models")
 DRONE_MODEL_CANDIDATES = (
     MODEL_DIR / "drone_tactical_best.pt",
-    pathlib.Path("yolov8s.pt"),
+    pathlib.Path("mshamrai/yolov8m-visdrone"),
+    pathlib.Path("mshamrai/yolov8s-visdrone"),
+    # Optional upgrade path for higher recall but slower inference:
+    # pathlib.Path("mshamrai/yolov8l-visdrone"),
     pathlib.Path("yolov8n.pt"),
 )
 
@@ -64,10 +67,17 @@ def load_yolo_model(model_name: str) -> tuple[Any, str]:
         candidates = [model_name]
 
     last_error: Exception | None = None
-    for candidate in candidates:
+    for idx, candidate in enumerate(candidates):
         try:
-            return YOLO(candidate), candidate
+            model = YOLO(candidate)
+            device = model.device.type if hasattr(model, "device") else "unknown"
+            source = "local" if pathlib.Path(candidate).exists() else "Hugging Face / remote"
+            is_fallback = idx > 0
+            print(f"[MODEL] Loaded: {candidate}")
+            print(f"[MODEL] Source: {source} | Device: {device} | Fallback triggered: {'Yes' if is_fallback else 'No'}")
+            return model, candidate
         except Exception as exc:
+            print(f"[MODEL] Failed to load {candidate}: {exc}")
             last_error = exc
 
     if last_error is not None:
@@ -139,6 +149,7 @@ def filter_by_geometry(
     boxes: list[dict[str, Any]],
     frame_width: int,
     frame_height: int,
+    min_rel_area: float = 0.00005,
 ) -> list[dict[str, Any]]:
     kept = []
     for box in boxes:
@@ -153,7 +164,7 @@ def filter_by_geometry(
         # person from overhead: not too big, not too small
         # relative area: 0.0003 to 0.015 of total frame
         # aspect ratio: 0.4 to 3.0 (taller than wide or square)
-        if relative_area < 0.0003:
+        if relative_area < min_rel_area:
             print(f"[GEO_FILTER] DROPPED box={box['xyxy']} "
                   f"rel_area={relative_area:.5f} aspect={aspect:.2f}")
             continue  # too small - noise
@@ -240,19 +251,35 @@ def global_nms(boxes: list[dict[str, Any]], iou_threshold: float = NMS_IOU_THRES
         return pure_python_nms(boxes, iou_threshold)
 
 
-def run_tiled_inference(image: Any, model: Any, frame_width: int, frame_height: int) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    tiles = generate_tiles(frame_width, frame_height)
-    remapped_boxes: list[dict[str, Any]] = []
+def run_tiled_inference(
+    image: Any, model: Any, frame_width: int, frame_height: int, 
+    min_rel_area: float = 0.00005, tile_size: int = 640, overlap_ratio: float = 0.35, 
+    tile_imgsz: int = 960, verbose: bool = True
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    stride = int(tile_size * (1 - overlap_ratio))
+    tiles = generate_tiles(frame_width, frame_height, tile_size, stride)
+    
+    tiled_raw_total = 0
+    after_class_filter = 0
+    detections_per_tile = []
+    
     tiled_start = time.perf_counter()
 
     def collect_tile_boxes(source_image: Any) -> list[dict[str, Any]]:
+        nonlocal tiled_raw_total, after_class_filter
         collected: list[dict[str, Any]] = []
-        for x1, y1, x2, y2 in tiles:
+        for i, (x1, y1, x2, y2) in enumerate(tiles):
             tile = source_image[y1:y2, x1:x2]
-            results = model(tile, imgsz=TILE_IMGSZ, conf=TILE_CONF)
+            results = model(tile, imgsz=tile_imgsz, conf=TILE_CONF)
             result = results[0]
+            
+            tiled_raw_total += len(result.boxes)
+            person_boxes = extract_person_boxes(result)
+            after_class_filter += len(person_boxes)
+            
+            detections_per_tile.append(len(person_boxes))
 
-            for box in extract_person_boxes(result):
+            for box in person_boxes:
                 local_x1, local_y1, local_x2, local_y2 = box["xyxy"]
                 collected.append({
                     **box,
@@ -267,41 +294,20 @@ def run_tiled_inference(image: Any, model: Any, frame_width: int, frame_height: 
 
     remapped_boxes = collect_tile_boxes(image)
     filtered = filter_by_geometry(
-        remapped_boxes, frame_width, frame_height
+        remapped_boxes, frame_width, frame_height, min_rel_area
     )
-    clahe_tiled_used = False
-
-    if len(filtered) < 3:
-        enhanced_image = enhance_with_clahe(image)
-        enhanced_boxes = collect_tile_boxes(enhanced_image)
-        remapped_boxes = remapped_boxes + enhanced_boxes
-        filtered = filter_by_geometry(
-            remapped_boxes, frame_width, frame_height
-        )
-        clahe_tiled_used = True
-
+    after_geometry_filter = len(filtered)
+    
     tiled_time_ms = (time.perf_counter() - tiled_start) * 1000
-    fusion_start = time.perf_counter()
-    nms_boxes = global_nms(filtered, NMS_IOU_THRESHOLD)
-    fusion_time_ms = (time.perf_counter() - fusion_start) * 1000
 
-    return nms_boxes, {
-        "sliced_inference_used": True,
-        "tiled_inference_used": True,
-        "tile_size": TILE_SIZE,
-        "overlap": TILE_OVERLAP,
-        "tile_imgsz": TILE_IMGSZ,
-        "tile_conf": TILE_CONF,
-        "nms_iou_threshold": NMS_IOU_THRESHOLD,
-        "geometric_filter_applied": True,
-        "clahe_second_pass_used": clahe_tiled_used,
+    return filtered, {
         "num_tiles": len(tiles),
-        "detections_before_nms": len(remapped_boxes),
-        "detections_after_nms": len(nms_boxes),
-        "tiled_time_ms": round(tiled_time_ms, 2),
-        "fusion_time_ms": round(fusion_time_ms, 2),
+        "detections_per_tile": detections_per_tile,
+        "tiled_raw_total": tiled_raw_total,
+        "after_class_filter_tiled": after_class_filter,
+        "after_geometry_filter_tiled": after_geometry_filter,
+        "tiled_time_ms": round(tiled_time_ms, 2)
     }
-
 
 def draw_preview(image: Any, boxes: list[dict[str, Any]], output_path: pathlib.Path) -> None:
     annotated = image.copy()
@@ -313,7 +319,6 @@ def draw_preview(image: Any, boxes: list[dict[str, Any]], output_path: pathlib.P
         label_y = max(16, y1 - 6)
         cv2.putText(annotated, label, (x1, label_y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (22, 163, 74), 2)
     cv2.imwrite(str(output_path), annotated)
-
 
 def run_inference_attempt(
     image_path: pathlib.Path,
@@ -332,7 +337,6 @@ def run_inference_attempt(
         "classes": None,
     }
 
-
 def run_image_inference_attempt(
     image: np.ndarray,
     model_name: str,
@@ -349,7 +353,6 @@ def run_image_inference_attempt(
         "classes": None,
     }
 
-
 def run_yolo_detection(
     image_path: str | pathlib.Path,
     out_dir: str | pathlib.Path = DEFAULT_DATA_DIR,
@@ -358,6 +361,11 @@ def run_yolo_detection(
     conf: float = DEFAULT_DRONE_CONF,
     classes: list[int] | None = None,
     retry_if_empty: bool = True,
+    min_rel_area: float = 0.00005,
+    tile_size: int = 640,
+    overlap_ratio: float = 0.35,
+    tile_imgsz: int = 960,
+    nms_iou: float = 0.65,
     verbose: bool = True,
 ) -> dict[str, Any]:
     image_path = pathlib.Path(image_path)
@@ -375,7 +383,7 @@ def run_yolo_detection(
 
     frame_height, frame_width = image.shape[:2]
     long_side = max(frame_width, frame_height)
-    if imgsz == DEFAULT_DRONE_IMGSZ:
+    if imgsz == 1280:
         if long_side > 1400:
             imgsz = 1536
         elif long_side > 1000:
@@ -386,78 +394,82 @@ def run_yolo_detection(
 
     requested_model_name = model_name or default_drone_model()
 
-    attempts: list[dict[str, Any]] = []
-    model, model_name = load_yolo_model(requested_model_name)
+    model, model_name_actual = load_yolo_model(requested_model_name)
+    
+    attempts = []
+    
+    # 1. Full Frame Pass
     full_frame_start = time.perf_counter()
-    result, params = run_inference_attempt(image_path, model_name, imgsz, conf, classes, model=model)
+    result, params = run_inference_attempt(image_path, model_name_actual, imgsz, conf, classes, model=model)
+    full_frame_raw = len(result.boxes)
     person_boxes = extract_person_boxes(result)
-    person_boxes = filter_by_geometry(
-        person_boxes, frame_width, frame_height
-    )
+    after_class_filter_ff = len(person_boxes)
+    person_boxes = filter_by_geometry(person_boxes, frame_width, frame_height, min_rel_area)
+    after_geometry_filter_ff = len(person_boxes)
     attempts.append({**params, "detections": len(person_boxes)})
-    clahe_second_pass_used = False
-
+    
+    # 2. CLAHE Pass if detections < 3
+    clahe_raw = 0
+    clahe_boxes = []
     if len(person_boxes) < 3:
         enhanced_image = enhance_with_clahe(image)
-        result, clahe_params = run_image_inference_attempt(enhanced_image, model_name, imgsz, conf, model=model)
-        clahe_boxes = extract_person_boxes(result)
-        clahe_boxes = filter_by_geometry(
-            clahe_boxes, frame_width, frame_height
-        )
-        person_boxes = global_nms(person_boxes + clahe_boxes, NMS_IOU_THRESHOLD)
+        c_result, clahe_params = run_image_inference_attempt(enhanced_image, model_name_actual, imgsz, conf, model=model)
+        clahe_raw = len(c_result.boxes)
+        c_boxes = extract_person_boxes(c_result)
+        clahe_boxes = filter_by_geometry(c_boxes, frame_width, frame_height, min_rel_area)
         attempts.append({**clahe_params, "detections": len(clahe_boxes), "preprocessing": "clahe"})
-        clahe_second_pass_used = True
 
+    # 3. High-res Retry if empty
+    high_res_retry_raw = 0
+    retry_boxes = []
     retry_used = False
-
-    if retry_if_empty and not person_boxes:
-        result, params = run_inference_attempt(image_path, model_name, RETRY_DRONE_IMGSZ, RETRY_DRONE_CONF, classes, model=model)
-        person_boxes = extract_person_boxes(result)
-        person_boxes = filter_by_geometry(
-            person_boxes, frame_width, frame_height
-        )
-        attempts.append({**params, "detections": len(person_boxes)})
+    if retry_if_empty and not person_boxes and not clahe_boxes:
+        hr_result, hr_params = run_inference_attempt(image_path, model_name_actual, RETRY_DRONE_IMGSZ, RETRY_DRONE_CONF, classes, model=model)
+        high_res_retry_raw = len(hr_result.boxes)
+        r_boxes = extract_person_boxes(hr_result)
+        retry_boxes = filter_by_geometry(r_boxes, frame_width, frame_height, min_rel_area)
+        attempts.append({**hr_params, "detections": len(retry_boxes)})
         retry_used = True
 
-    full_frame_time_ms = (time.perf_counter() - full_frame_start) * 1000
-    tiled_metadata = {
-        "sliced_inference_used": False,
-        "tiled_inference_used": False,
-        "tile_size": TILE_SIZE,
-        "overlap": TILE_OVERLAP,
-        "tile_imgsz": TILE_IMGSZ,
-        "tile_conf": TILE_CONF,
-        "nms_iou_threshold": NMS_IOU_THRESHOLD,
-        "geometric_filter_applied": True,
-        "clahe_second_pass_used": clahe_second_pass_used,
-        "num_tiles": 0,
-        "detections_before_nms": len(person_boxes),
-        "detections_after_nms": len(person_boxes),
-        "tiled_time_ms": 0.0,
-        "fusion_time_ms": 0.0,
-    }
-
+    # 4. Tiled Inference Pass
     tiled_boxes, tiled_metadata = run_tiled_inference(
-        image, model, frame_width, frame_height
+        image, model, frame_width, frame_height, 
+        min_rel_area=min_rel_area, tile_size=tile_size, overlap_ratio=overlap_ratio, 
+        tile_imgsz=tile_imgsz, verbose=verbose
     )
-    tiled_boxes = filter_by_geometry(
-        tiled_boxes, frame_width, frame_height
-    )
-    final_boxes = global_nms(
-        person_boxes + tiled_boxes, NMS_IOU_THRESHOLD
-    )
+
+    # Combine all
+    all_boxes = person_boxes + clahe_boxes + retry_boxes + tiled_boxes
+    before_nms_total = len(all_boxes)
+    
+    # Global NMS
+    final_boxes = global_nms(all_boxes, nms_iou)
+    final_detections = len(final_boxes)
 
     metadata = {
         "mode": "drone_demo",
-        "model": params["model"],
-        "imgsz": params["imgsz"],
-        "conf": params["conf"],
-        "classes": params["classes"],
+        "model": model_name_actual,
+        "imgsz": imgsz,
+        "conf": conf,
+        "classes": classes,
         "retry_used": retry_used,
         "attempts": attempts,
         "full_frame_attempt": True,
-        "final_detection_stage": "tiled" if tiled_metadata["sliced_inference_used"] else "full_frame",
-        "full_frame_time_ms": round(full_frame_time_ms, 2),
+        "final_detection_stage": "hybrid",
+        "full_frame_raw": full_frame_raw,
+        "clahe_raw": clahe_raw,
+        "high_res_retry_raw": high_res_retry_raw,
+        "tiled_raw_total": tiled_metadata["tiled_raw_total"],
+        "after_class_filter": after_class_filter_ff + tiled_metadata["after_class_filter_tiled"],
+        "after_geometry_filter": after_geometry_filter_ff + tiled_metadata["after_geometry_filter_tiled"],
+        "before_nms_total": before_nms_total,
+        "after_nms": final_detections,
+        "final_detections": final_detections,
+        "nms_iou": nms_iou,
+        "tile_size": tile_size,
+        "tile_imgsz": tile_imgsz,
+        "overlap_ratio": overlap_ratio,
+        "min_rel_area": min_rel_area,
         **tiled_metadata,
     }
 
@@ -466,7 +478,7 @@ def run_yolo_detection(
     json_path = out_dir / "detections.json"
     with json_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
-        handle.write("\n")
+        handle.write("\\n")
 
     preview_path = out_dir / "detection_preview.jpg"
     draw_preview(image, final_boxes, preview_path)
@@ -486,7 +498,6 @@ def run_yolo_detection(
         "preview_path": preview_path,
     }
 
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run YOLOv8n on an image and export person detections for ResQVision."
@@ -496,16 +507,35 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_IMAGE,
         help=f"Path to input image (default: {DEFAULT_IMAGE})",
     )
+    parser.add_argument("--preset", choices=["fast", "high_recall"], default="fast", help="Inference preset")
     parser.add_argument("--model", default=None, help="YOLO model path/name. Default prefers models/drone_tactical_best.pt, then yolov8s.pt, then yolov8n.pt.")
     parser.add_argument("--imgsz", type=int, default=DEFAULT_DRONE_IMGSZ, help=f"Inference image size (default: {DEFAULT_DRONE_IMGSZ})")
     parser.add_argument("--conf", type=float, default=DEFAULT_DRONE_CONF, help=f"Confidence threshold (default: {DEFAULT_DRONE_CONF})")
     parser.add_argument("--classes", default=None, help="Comma-separated YOLO class IDs, 'all', or empty. Kept for metadata only; person filtering is name-based.")
+    parser.add_argument("--min-rel-area", type=float, default=0.00005, help="Minimum relative area for geometric filter (default: 0.00005)")
+    parser.add_argument("--tile-size", type=int, default=640, help="Tile size for tiled inference (default: 640)")
+    parser.add_argument("--overlap-ratio", type=float, default=0.35, help="Overlap ratio for tiled inference (default: 0.35)")
+    parser.add_argument("--tile-imgsz", type=int, default=960, help="Inference resolution per tile (default: 960)")
+    parser.add_argument("--nms-iou", type=float, default=0.65, help="NMS IoU threshold (default: 0.65)")
     parser.add_argument("--no-retry", action="store_true", help="Disable empty-result retry with larger image size and lower confidence.")
     return parser.parse_args()
 
-
 def main() -> int:
     args = parse_args()
+    
+    # Apply presets
+    if args.preset == "high_recall":
+        args.tile_size = 480
+        args.tile_imgsz = 1280
+        args.overlap_ratio = 0.35
+        args.nms_iou = 0.65
+    else:
+        # fast
+        args.tile_size = 640
+        args.tile_imgsz = 960
+        args.overlap_ratio = 0.35
+        args.nms_iou = 0.65
+
     try:
         run_yolo_detection(
             args.image,
@@ -514,12 +544,18 @@ def main() -> int:
             conf=args.conf,
             classes=parse_classes(args.classes),
             retry_if_empty=not args.no_retry,
+            min_rel_area=args.min_rel_area,
+            tile_size=args.tile_size,
+            overlap_ratio=args.overlap_ratio,
+            tile_imgsz=args.tile_imgsz,
+            nms_iou=args.nms_iou,
         )
     except Exception as exc:
+        import traceback
+        traceback.print_exc()
         print(f"[ERROR] {exc}")
         return 1
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

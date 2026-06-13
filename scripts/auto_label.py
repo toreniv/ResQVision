@@ -1,51 +1,109 @@
-import cv2, pathlib
-from ultralytics import YOLO
+from __future__ import annotations
 
-PERSON_CLASSES = {'person', 'pedestrian', 'people'}
-MODEL_CANDIDATES = (
-    pathlib.Path('models/drone_tactical_best.pt'),
-    pathlib.Path('yolov8s.pt'),
-    pathlib.Path('yolov8n.pt'),
-)
+import json
+import pathlib
+import shutil
+
+import cv2
+
+# Import run_yolo_detection from yolo_detect
+from yolo_detect import run_yolo_detection
 
 
-def load_preferred_model():
-    last_error = None
-    for model_path in MODEL_CANDIDATES:
+FRAMES_DIR = pathlib.Path("frames_deduped")
+DRAFT_DIR = pathlib.Path("dataset_draft")
+IMAGES_DIR = DRAFT_DIR / "images"
+LABELS_DIR = DRAFT_DIR / "labels"
+DETAILS_DIR = DRAFT_DIR / "details"
+MANIFEST_PATH = DRAFT_DIR / "manifest.json"
+
+MANUAL_GT_PATH = pathlib.Path("benchmarks/manual_expected_soldiers.json")
+
+
+def main() -> int:
+    if DRAFT_DIR.exists():
+        shutil.rmtree(DRAFT_DIR)
+    IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+    LABELS_DIR.mkdir(parents=True, exist_ok=True)
+    DETAILS_DIR.mkdir(parents=True, exist_ok=True)
+
+    manifest = {}
+    
+    expected_gt = {}
+    if MANUAL_GT_PATH.exists():
         try:
-            model = YOLO(str(model_path))
-            print(f'[ResQVision] Auto-label model: {model_path}')
-            return model
-        except Exception as exc:
-            last_error = exc
-    raise last_error
+            expected_gt = json.loads(MANUAL_GT_PATH.read_text("utf-8"))
+        except:
+            pass
 
-
-model = load_preferred_model()
-frames_dir = pathlib.Path('frames')
-labels_dir = pathlib.Path('dataset/labels/train')
-images_dir = pathlib.Path('dataset/images/train')
-labels_dir.mkdir(parents=True, exist_ok=True)
-images_dir.mkdir(parents=True, exist_ok=True)
-
-for img_path in sorted(frames_dir.glob('*.jpg')):
-    img = cv2.imread(str(img_path))
-    h, w = img.shape[:2]
-    results = model(img, imgsz=1280, conf=0.08)[0]
-
-    label_lines = []
-    for box in results.boxes:
-        if results.names[int(box.cls)] not in PERSON_CLASSES:
+    for img_path in sorted(FRAMES_DIR.glob("*.jpg")):
+        img = cv2.imread(str(img_path))
+        if img is None:
+            print(f"[WARN] Could not read {img_path}")
             continue
-        x1, y1, x2, y2 = box.xyxy[0].tolist()
-        cx = ((x1 + x2) / 2) / w
-        cy = ((y1 + y2) / 2) / h
-        bw = (x2 - x1) / w
-        bh = (y2 - y1) / h
-        label_lines.append(f'0 {cx:.6f} {cy:.6f} {bw:.6f} {bh:.6f}')
 
-    cv2.imwrite(str(images_dir / img_path.name), img)
-    (labels_dir / img_path.stem).with_suffix('.txt').write_text('\n'.join(label_lines))
-    print(f'{img_path.name}: {len(label_lines)} persons labeled')
+        height, width = img.shape[:2]
+        
+        img_details_dir = DETAILS_DIR / img_path.stem
+        img_details_dir.mkdir(parents=True, exist_ok=True)
+        
+        out = run_yolo_detection(
+            image_path=str(img_path),
+            out_dir=img_details_dir,
+            model_name=None,
+            tile_size=480,
+            tile_imgsz=1280,
+            overlap_ratio=0.35,
+            nms_iou=0.65,
+            verbose=False
+        )
+        
+        detections = out["payload"]["detections"]
+        detected_count = len(detections)
+        
+        label_lines = []
+        for det in detections:
+            x1, y1, w, h = det["bbox"]
+            x2 = x1 + w
+            y2 = y1 + h
+            cx = ((x1 + x2) / 2) / width
+            cy = ((y1 + y2) / 2) / height
+            bw = (x2 - x1) / width
+            bh = (y2 - y1) / height
+            label_lines.append(f"0 {cx:.6f} {cy:.6f} {bw:.6f} {bh:.6f}")
+            
+        shutil.copy2(img_path, IMAGES_DIR / img_path.name)
+        (LABELS_DIR / img_path.with_suffix(".txt").name).write_text("\n".join(label_lines), encoding="utf-8")
+        
+        expected_count = expected_gt.get(img_path.name, None)
+        
+        incomplete_labels = True if (expected_count is not None and detected_count < expected_count) else False
+        count_ratio = None
+        if expected_count is not None and expected_count > 0:
+            count_ratio = (detected_count / expected_count) * 100
 
-print('Done!')
+        manifest[img_path.stem] = {
+            "filename": img_path.name,
+            "preset_used": "high_recall",
+            "detected_count": detected_count,
+            "expected_count": expected_count,
+            "count_ratio": count_ratio,
+            "needs_review": True,
+            "incomplete_labels": incomplete_labels,
+            "status": "unreviewed",
+        }
+        
+        shutil.copy2(img_path, img_details_dir / img_path.name)
+        (img_details_dir / img_path.with_suffix(".txt").name).write_text("\n".join(label_lines), encoding="utf-8")
+        
+        print(f"{img_path.name}: {detected_count} draft person(s) (high_recall)")
+
+    MANIFEST_PATH.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    print("[DRAFT] These labels are unreviewed.")
+    print("Do not use dataset_draft/ for training directly.")
+    print("Run scripts/review_dataset.py to approve frames.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

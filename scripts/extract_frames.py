@@ -1,33 +1,61 @@
+from __future__ import annotations
 
-import cv2, pathlib, sys
+import argparse
+import pathlib
+import sys
 
-VIDEO_NAME = 'soldiers_drill.mp4'  # שנה לשם הסרטון שלך
-EVERY_N_FRAMES = 3  # 1 = כל פריים, 2 = כל פריים שני וכו'
+import cv2
 
-video = cv2.VideoCapture(VIDEO_NAME)
-if not video.isOpened():
-    sys.exit(f'Could not open video: {VIDEO_NAME}')
 
-fps = video.get(cv2.CAP_PROP_FPS)
-total = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-print(f'Video: {fps:.1f}fps, {total} frames, {total/fps:.1f}s')
+def extract_video(video_path: pathlib.Path, frames_root: pathlib.Path, interval: int = 1) -> int:
+    video = cv2.VideoCapture(str(video_path))
+    if not video.isOpened():
+        raise RuntimeError(f"Could not open video: {video_path}")
 
-out_dir = pathlib.Path('frames')
-out_dir.mkdir(exist_ok=True)
+    out_dir = frames_root / video_path.stem
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-# מחק פריימים ישנים
-for f in out_dir.glob('*.jpg'):
-    f.unlink()
+    for old_frame in out_dir.glob("frame_*.jpg"):
+        old_frame.unlink()
 
-i, saved = 0, 0
-while True:
-    ret, frame = video.read()
-    if not ret:
-        break
-    if i % EVERY_N_FRAMES == 0:
-        cv2.imwrite(str(out_dir / f'frame_{saved:04d}.jpg'), frame)
-        saved += 1
-    i += 1
+    frame_index = 0
+    saved = 0
+    while True:
+        ret, frame = video.read()
+        if not ret:
+            break
+        if frame_index % interval == 0:
+            cv2.imwrite(str(out_dir / f"frame_{saved:04d}.jpg"), frame)
+            saved += 1
+        frame_index += 1
 
-video.release()
-print(f'Saved {saved} frames to frames/')
+    video.release()
+    print(f"[FRAMES] {video_path}: saved {saved} frame(s) to {out_dir}")
+    return saved
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Extract every frame from one or more videos.")
+    parser.add_argument("--videos", nargs="+", required=True, help="Video path(s) to extract.")
+    parser.add_argument("--interval", type=int, default=1, help="Save every Nth frame. Default: 1.")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    interval = max(1, args.interval)
+    frames_root = pathlib.Path("frames")
+
+    total_saved = 0
+    for video in args.videos:
+        total_saved += extract_video(pathlib.Path(video), frames_root, interval)
+
+    print(f"[FRAMES] Total saved: {total_saved}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        sys.exit(f"[ERROR] {exc}")

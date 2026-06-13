@@ -707,6 +707,80 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
   const [serverStatus, setServerStatus] = useState(null);
   const [yoloNoDetections, setYoloNoDetections] = useState(false);
 
+  // --- Pipeline state ---
+  const [batchQueue, setBatchQueue] = useState([]);        // File[]
+  const [batchIndex, setBatchIndex] = useState(0);         // current position in queue
+  const [pipelineStep, setPipelineStep] = useState(null);  // null | 1 | 2 | 3 | 4
+  const [pipelineJobId, setPipelineJobId] = useState(null);
+  const [pipelineLog, setPipelineLog] = useState([]);      // string[]
+  const [trainingDone, setTrainingDone] = useState(false);
+  const [buildSummary, setBuildSummary] = useState(null);  // final stats
+  const [advancedOpen, setAdvancedOpen] = useState(false); // UI toggle
+  
+  // Keep review mode states for advanced tools
+  const [batchMode, setBatchMode] = useState(null);
+  const [reviewYoloDetections, setReviewYoloDetections] = useState(0);
+
+  // --- Debug benchmark state ---
+  const [detectionMetadata, setDetectionMetadata] = useState(null);
+  const [expectedSoldiers, setExpectedSoldiers] = useState("");
+  const [benchmarks, setBenchmarks] = useState([]);
+
+  useEffect(() => {
+    fetch('/data/benchmarks.json?t=' + Date.now())
+      .then((r) => r.json())
+      .then((data) => setBenchmarks(data))
+      .catch(() => setBenchmarks([]));
+  }, []);
+
+  useEffect(() => {
+    const key = `resqvision_expected_${manualImageName || 'default'}`;
+    const saved = localStorage.getItem(key);
+    if (saved) setExpectedSoldiers(saved);
+    else setExpectedSoldiers("");
+  }, [manualImageName]);
+
+  const handleExpectedSoldiersChange = (e) => {
+    const val = e.target.value;
+    setExpectedSoldiers(val);
+    const key = `resqvision_expected_${manualImageName || 'default'}`;
+    localStorage.setItem(key, val);
+  };
+
+  const handleSaveBenchmark = async () => {
+    if (!expectedSoldiers || !detectionMetadata) return;
+    const final_count = detectionMetadata.final_count ?? 0;
+    const expected = parseInt(expectedSoldiers, 10);
+    const recall = expected > 0 ? (final_count / expected) : 0;
+    
+    const payload = {
+      image_filename: manualImageName || 'detection_preview.jpg',
+      expected_soldiers: expected,
+      detected_soldiers: final_count,
+      estimated_recall: recall,
+      model_name: detectionMetadata.model || 'unknown',
+      tile_size: detectionMetadata.tile_size || 640,
+      overlap_ratio: detectionMetadata.overlap || 0.35,
+      min_rel_area: 0.00005 // Hardcoded for now
+    };
+
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/benchmark/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        fetch('/data/benchmarks.json?t=' + Date.now())
+          .then((r) => r.json())
+          .then((data) => setBenchmarks(data))
+          .catch(() => {});
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     let liveLoaded = false;
 
@@ -720,6 +794,7 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
           const nextDetections = Array.isArray(data) ? data : data?.detections;
           setDetections(Array.isArray(nextDetections) ? nextDetections : CV_MOCK);
           setDetectionSource(Array.isArray(data) ? 'legacy_array' : data?.source ?? null);
+          setDetectionMetadata(data?.metadata ?? null);
           setHasLiveData(true);
           liveLoaded = true;
           setPreviewVersion(Date.now());
@@ -743,20 +818,49 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
   const isOfflineImage = detectionSource === 'offline_image';
   const sourceLabel = isOfflineImage ? 'Offline Image Mode' : hasLiveData ? 'Live JSON' : 'Mock data';
 
-  const handleManualImageChange = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  // Load a single File object into the image viewer (shared by single & batch).
+  const loadFileIntoViewer = (file) => {
     setSelectedImageFile(file);
     setBackendError(null);
     setServerStatus(null);
     setYoloNoDetections(false);
+    setManualDronePoints([]);
+    setSelectedMarkerId(null);
     setManualImageUrl((currentUrl) => {
       if (currentUrl) URL.revokeObjectURL(currentUrl);
       return URL.createObjectURL(file);
     });
     setManualImageName(file.name);
     setManualImageSize({ width: 0, height: 0 });
+  };
+
+  const resetPipelineState = () => {
+    setPipelineStep(null);
+    setPipelineJobId(null);
+    setPipelineLog([]);
+    setTrainingDone(false);
+    setBuildSummary(null);
+    setBackendError(null);
+  };
+
+  const handleManualImageChange = (event) => {
+    const files = Array.from(event.target.files ?? []);
+    if (!files.length) return;
+
+    resetPipelineState();
+
+    if (files.length === 1) {
+      // Single-image: preserve existing single-image workflow.
+      setBatchQueue([files[0]]);
+      setBatchIndex(0);
+      loadFileIntoViewer(files[0]);
+    } else {
+      // Multi-image: populate the batch queue but don't auto-process.
+      const sorted = [...files].sort((a, b) => a.name.localeCompare(b.name));
+      setBatchQueue(sorted);
+      setBatchIndex(0);
+      loadFileIntoViewer(sorted[0]);
+    }
   };
 
   const handleManualImageLoad = (event) => {
@@ -861,6 +965,21 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
       });
   };
 
+  // Upload a single file to the YOLO endpoint and refresh detection state.
+  const uploadFileToYolo = async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await fetch('http://127.0.0.1:8000/api/yolo/upload', {
+      method: 'POST',
+      body: formData,
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.message || 'YOLO upload failed');
+    }
+    return result;
+  };
+
   const runYoloOnUploadedImage = async () => {
     if (!selectedImageFile) {
       setBackendError('Upload a drone image before running YOLO.');
@@ -873,16 +992,7 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
     setYoloNoDetections(false);
 
     try {
-      const formData = new FormData();
-      formData.append('image', selectedImageFile);
-      const response = await fetch('http://127.0.0.1:8000/api/yolo/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const result = await response.json();
-      if (!response.ok || !result.ok) {
-        throw new Error(result.message || 'YOLO upload failed');
-      }
+      const result = await uploadFileToYolo(selectedImageFile);
       setYoloNoDetections(result.detections === 0);
       setServerStatus(`YOLO complete: ${result.detections} detection${result.detections === 1 ? '' : 's'} fused.`);
       await refreshDetectionsOnce();
@@ -891,6 +1001,260 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
       setBackendError(error.message || 'Local YOLO backend is not running.');
     } finally {
       setIsRunningYolo(false);
+    }
+  };
+
+  // Save current markers then advance to the next image in the batch.
+  const saveMarkersForBatchImage = async () => {
+    const markers = manualDronePoints.map((point) => ({
+      source: 'MANUAL_TAG',
+      soldier_id: point.soldier_id ?? '',
+      band_id: point.band_id ?? '',
+      x_image: point.x_image ?? point.image_center?.[0] ?? 0,
+      y_image: point.y_image ?? point.image_center?.[1] ?? 0,
+      x_norm: point.x_norm ?? 0,
+      y_norm: point.y_norm ?? 0,
+      x_map: point.x_map ?? point.map_position?.[0] ?? 0,
+      y_map: point.y_map ?? point.map_position?.[1] ?? 0,
+      label: point.label ?? 'Soldier',
+      status: point.status ?? '',
+    }));
+
+    if (!markers.length) return { ok: true, dataset_sample: { created: false } };
+
+    const response = await fetch('http://127.0.0.1:8000/api/markers/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(markers),
+    });
+    return response.json();
+  };
+
+  // ── One-Button Pipeline: Build & Train
+  const buildAndTrain = async () => {
+    if (!batchQueue.length) {
+      setBackendError('Select images first.');
+      return;
+    }
+    
+    // Reset state
+    setPipelineStep(1);
+    setPipelineJobId(null);
+    setPipelineLog([]);
+    setTrainingDone(false);
+    setBuildSummary(null);
+    setBackendError(null);
+
+    let totalDetections = 0;
+    let zeroDetectionImages = 0;
+    let savedCount = 0;
+
+    // STEP 1: Process images
+    for (let i = 0; i < batchQueue.length; i++) {
+      const file = batchQueue[i];
+      setBatchIndex(i);
+      setManualImageUrl((url) => { if (url) URL.revokeObjectURL(url); return URL.createObjectURL(file); });
+      setManualImageName(file.name);
+      
+      try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const response = await fetch('http://127.0.0.1:8000/api/yolo/upload_and_save', {
+          method: 'POST',
+          body: formData,
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || 'Upload failed');
+
+        const det = result.detections ?? 0;
+        totalDetections += det;
+        savedCount += 1;
+        if (det === 0) zeroDetectionImages += 1;
+      } catch (err) {
+        setBackendError(`Image ${i + 1} failed: ${err.message}`);
+      }
+    }
+
+    // STEP 2: Export & Launch Training
+    setPipelineStep(2);
+    let jobId = null;
+    let exportResult = null;
+    try {
+      const resp = await fetch('http://127.0.0.1:8000/api/pipeline/build-and-train', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ epochs: 3, batch: 4 })
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) throw new Error(data.message || 'Failed to start pipeline');
+      
+      exportResult = data.dataset;
+
+      if (data.status === 'local_training_skipped_colab_required') {
+        setPipelineStep(4);
+        setTrainingDone(true);
+        setBuildSummary({
+          status: 'local_training_skipped_colab_required',
+          images: savedCount,
+          labels: totalDetections,
+          zeroDetections: zeroDetectionImages,
+          zipPath: data.dataset_zip_path ?? 'dataset.zip',
+          exportOk: !!exportResult?.ok,
+          totalInQueue: batchQueue.length
+        });
+        refreshTacticalData?.();
+        return;
+      }
+      
+      jobId = data.job_id;
+      setPipelineJobId(jobId);
+    } catch (err) {
+      setBackendError(`Pipeline start failed: ${err.message}`);
+      setPipelineStep(null);
+      return;
+    }
+
+    // STEP 3: Poll Training Status
+    setPipelineStep(3);
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        const statusResp = await fetch(`http://127.0.0.1:8000/api/pipeline/status/${jobId}`);
+        const statusData = await statusResp.json();
+        
+        if (statusData.ok) {
+          if (statusData.log_tail && statusData.log_tail.length > 0) {
+            setPipelineLog(prev => [...prev, ...statusData.log_tail]);
+          }
+          
+          if (!statusData.running) {
+            clearInterval(pollInterval);
+            // STEP 4: Done
+            setPipelineStep(4);
+            setTrainingDone(true);
+            setBuildSummary({
+              status: statusData.returncode === 0 ? 'local_training_completed' : 'local_training_failed',
+              images: savedCount,
+              labels: totalDetections,
+              zeroDetections: zeroDetectionImages,
+              zipPath: exportResult?.zip_path ?? 'dataset.zip',
+              exportOk: !!exportResult?.ok,
+              totalInQueue: batchQueue.length,
+              returncode: statusData.returncode
+            });
+            refreshTacticalData?.();
+          }
+        }
+      } catch (err) {
+        console.error("Polling error", err);
+      }
+    }, 3000);
+  };
+
+  // ── Review batch: open image 1, run YOLO, wait for user, Save & Next moves to image 2, etc.
+  const startReview = async () => {
+    if (!batchQueue.length) {
+      setBackendError('No batch queue loaded. Select multiple images first.');
+      return;
+    }
+    setBatchMode('review');
+    setSavedSamplesCount(0);
+    setBatchIndex(0);
+    setReviewYoloDetections(0);
+    setBackendError(null);
+    const file = batchQueue[0];
+    loadFileIntoViewer(file);
+    setServerStatus(`Reviewing image 1 / ${batchQueue.length}: ${file.name} — running YOLO…`);
+    // Run YOLO on the first image so detections are ready.
+    try {
+      const result = await uploadFileToYolo(file);
+      await refreshDetectionsOnce();
+      refreshTacticalData?.();
+      setReviewYoloDetections(result.detections);
+      setServerStatus(
+        `Reviewing image 1 / ${batchQueue.length} — YOLO: ${result.detections} detection(s). ` +
+        `Add missing soldiers, then click "Save & Next".`
+      );
+    } catch (err) {
+      setBackendError(`YOLO failed for image 1: ${err.message}`);
+    }
+  };
+
+  // Save current image (YOLO boxes + manual tags) and advance to next review image.
+  const saveAndNext = async () => {
+    if (batchMode !== 'review') return;
+    setIsSavingMarkers(true);
+    setBackendError(null);
+
+    try {
+      // Serialize current manual tags to pass alongside the image.
+      const manualPayload = manualDronePoints.map((point) => ({
+        source: 'MANUAL_TAG',
+        soldier_id: point.soldier_id ?? '',
+        band_id: point.band_id ?? '',
+        x_image: point.x_image ?? point.image_center?.[0] ?? 0,
+        y_image: point.y_image ?? point.image_center?.[1] ?? 0,
+        x_norm: point.x_norm ?? 0,
+        y_norm: point.y_norm ?? 0,
+        x_map: point.x_map ?? point.map_position?.[0] ?? 0,
+        y_map: point.y_map ?? point.map_position?.[1] ?? 0,
+        label: point.label ?? 'Soldier',
+        status: point.status ?? '',
+      }));
+
+      // Call the atomic endpoint — it re-uploads the current file so it uses
+      // the in-memory image for label writing (not the shared drone_frame.png).
+      const formData = new FormData();
+      formData.append('image', batchQueue[batchIndex]);
+      if (manualPayload.length) {
+        formData.append('manual_markers', JSON.stringify(manualPayload));
+      }
+      const response = await fetch('http://127.0.0.1:8000/api/yolo/upload_and_save', {
+        method: 'POST',
+        body: formData,
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.message || 'Save failed');
+
+      const sample = result.dataset_sample;
+      const newSaved = savedSamplesCount + (sample?.created ? 1 : 0);
+      setSavedSamplesCount(newSaved);
+
+      const savedLabel = sample?.created ? `→ ${sample.frame}` : '(no labels, skipped)';
+      setServerStatus(`Saved image ${batchIndex + 1} / ${batchQueue.length} ${savedLabel}.`);
+      refreshTacticalData?.();
+
+      const nextIdx = batchIndex + 1;
+      if (nextIdx < batchQueue.length) {
+        // Advance to next image and run YOLO on it.
+        setBatchIndex(nextIdx);
+        const nextFile = batchQueue[nextIdx];
+        loadFileIntoViewer(nextFile);
+        setReviewYoloDetections(0);
+        setServerStatus(`Reviewing image ${nextIdx + 1} / ${batchQueue.length}: ${nextFile.name} — running YOLO…`);
+        try {
+          const nextResult = await uploadFileToYolo(nextFile);
+          await refreshDetectionsOnce();
+          setReviewYoloDetections(nextResult.detections);
+          setServerStatus(
+            `Reviewing image ${nextIdx + 1} / ${batchQueue.length} — ` +
+            `YOLO: ${nextResult.detections} detection(s). Add missing soldiers, then click "Save & Next".`
+          );
+        } catch (err) {
+          setBackendError(`YOLO failed for image ${nextIdx + 1}: ${err.message}`);
+        }
+      } else {
+        // All images reviewed.
+        setBatchMode(null);
+        setServerStatus(
+          `Review complete. ${newSaved} / ${batchQueue.length} samples saved. ` +
+          `Click "Export Training Dataset" to package them.`
+        );
+      }
+    } catch (err) {
+      setBackendError(err.message || 'Save failed.');
+    } finally {
+      setIsSavingMarkers(false);
     }
   };
 
@@ -988,33 +1352,193 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
         {hasLiveData && detectionSource === 'live_camera' && <span className="cv-live-badge">LIVE</span>}
       </div>
 
-      <div className="cv-layout">
-        <section className="panel cv-preview-panel">
+      <div className="cv-pipeline-layout">
+        <section className="panel pipeline-panel">
           <div className="panel-title">
-            <h3>Detection Preview</h3>
-            <span>Image / video frame</span>
+            <h3>One-Button Training Pipeline</h3>
+            <span>Automated Dataset & Model Generation</span>
           </div>
-          {previewAvailable ? (
-            <img
-              src={`/data/detection_preview.jpg?t=${previewVersion}`}
-              alt="Detection Preview"
-              className="cv-preview-img"
-              onError={() => setPreviewAvailable(false)}
-            />
-          ) : (
-            <div className="cv-image-placeholder">
-              <Eye size={48} strokeWidth={1.2} />
-              <p>Detection Preview</p>
-              <small>Place <code>detection_preview.jpg</code> in <code>public/data/</code> to show a real frame</small>
+
+          <div className="pipeline-controls">
+            <label className="drone-file-control">
+              <span>Select drone frames</span>
+              <input
+                id="drone-file-input"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleManualImageChange}
+              />
+            </label>
+
+            {batchQueue.length > 0 && !pipelineStep && (
+              <button
+                type="button"
+                className="batch-build-btn"
+                onClick={buildAndTrain}
+              >
+                ⚡ Build Dataset & Train
+              </button>
+            )}
+          </div>
+
+          {pipelineStep && (
+            <div className="pipeline-card">
+              <div className={`pipeline-step ${pipelineStep === 1 ? 'active' : pipelineStep > 1 ? 'done' : ''}`}>
+                <div className="step-num">{pipelineStep > 1 ? '✓' : '1'}</div>
+                <div className="step-label">Processing images {pipelineStep === 1 ? `(${batchIndex + 1}/${batchQueue.length})` : ''}</div>
+              </div>
+              <div className={`pipeline-step ${pipelineStep === 2 ? 'active' : pipelineStep > 2 ? 'done' : ''}`}>
+                <div className="step-num">{pipelineStep > 2 ? '✓' : '2'}</div>
+                <div className="step-label">Exporting dataset</div>
+              </div>
+              <div className={`pipeline-step ${pipelineStep === 3 ? 'active' : pipelineStep > 3 ? 'done' : ''}`}>
+                <div className="step-num">{pipelineStep > 3 ? '✓' : '3'}</div>
+                <div className="step-label">Training model</div>
+              </div>
+              <div className={`pipeline-step ${pipelineStep === 4 ? 'done' : ''}`}>
+                <div className="step-num">{pipelineStep === 4 ? '✓' : '4'}</div>
+                <div className="step-label">Done</div>
+              </div>
+
+              {pipelineStep === 3 && pipelineLog.length > 0 && (
+                <div className="pipeline-log">
+                  {pipelineLog.slice(-15).map((logLine, idx) => (
+                    <div key={idx}>{logLine}</div>
+                  ))}
+                </div>
+              )}
+
+              {buildSummary && (
+                <div className="build-summary-card">
+                  {buildSummary.status === 'local_training_skipped_colab_required' ? (
+                    <>
+                      <div className="build-summary-title">Dataset built successfully</div>
+                      <dl className="build-summary-stats">
+                        <div><dt>Local GPU</dt><dd>not available</dd></div>
+                        <div><dt>Local training</dt><dd>skipped</dd></div>
+                        <div><dt>Training mode</dt><dd>Colab required</dd></div>
+                        <div><dt>Dataset Path</dt><dd>{buildSummary.zipPath}</dd></div>
+                      </dl>
+                      <div className="cv-note" style={{ marginTop: '12px', display: 'block' }}>
+                        <strong>Next steps:</strong>
+                        <ol style={{ margin: '8px 0 0 20px', padding: 0 }}>
+                          <li>Open ResQVision_Colab_Workflow.ipynb</li>
+                          <li>Upload dataset.zip</li>
+                          <li>Train on Colab GPU</li>
+                          <li>Download best.pt</li>
+                          <li>Place it at models/drone_tactical_best.pt</li>
+                          <li>Restart yolo_server.py</li>
+                        </ol>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="build-summary-title">
+                        {buildSummary.status === 'local_training_completed' ? '✅ Training Complete' : '⚠️ Training Finished with Errors'}
+                      </div>
+                      <dl className="build-summary-stats">
+                        <div>
+                          <dt>Images processed</dt>
+                          <dd>{buildSummary.images} / {buildSummary.totalInQueue}</dd>
+                        </div>
+                        <div>
+                          <dt>Total detections saved</dt>
+                          <dd>{buildSummary.labels}</dd>
+                        </div>
+                        <div className={buildSummary.zeroDetections > 0 ? 'build-stat-warn' : ''}>
+                          <dt>Needs review (0 detections)</dt>
+                          <dd>{buildSummary.zeroDetections}</dd>
+                        </div>
+                        <div>
+                          <dt>Model Path</dt>
+                          <dd>models/drone_tactical_best.pt</dd>
+                        </div>
+                      </dl>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {backendError && (
+            <div className="cv-backend-error">
+              <strong>Error</strong>
+              <small>{backendError}</small>
             </div>
           )}
         </section>
+      </div>
 
+      <details className="advanced-toggle" open={advancedOpen} onToggle={e => setAdvancedOpen(e.target.open)}>
+        <summary>Advanced Manual Review & Debug</summary>
+        <div className="advanced-content">
+      <div className="cv-layout">
         <section className="panel cv-detections-panel">
           <div className="panel-title">
             <h3>Detections</h3>
             <span>{detections.length} object{detections.length !== 1 ? 's' : ''}</span>
           </div>
+          
+          {detectionMetadata && (
+            <div className="cv-benchmark-panel" style={{ padding: '16px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', marginBottom: '8px' }}>
+              <h4 style={{ marginTop: 0, marginBottom: '12px' }}>Detection Benchmark</h4>
+              <dl style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', margin: 0, fontSize: '0.85rem' }}>
+                <div><dt>Image</dt><dd>{manualImageName || 'detection_preview.jpg'}</dd></div>
+                <div><dt>Raw Detections</dt><dd>{detectionMetadata.raw_detections_count ?? '-'}</dd></div>
+                <div><dt>Post-Filter</dt><dd>{detectionMetadata.post_geometry_filter_count ?? '-'}</dd></div>
+                <div><dt>Post-Merge</dt><dd>{detectionMetadata.post_merge_count ?? '-'}</dd></div>
+                <div><dt>Post-NMS (Final)</dt><dd>{detectionMetadata.final_count ?? '-'}</dd></div>
+              </dl>
+              <div style={{ marginTop: '12px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <label style={{ fontSize: '0.85rem' }}>Expected soldiers:</label>
+                <input 
+                  type="number" 
+                  style={{ width: '60px', padding: '4px' }} 
+                  value={expectedSoldiers} 
+                  onChange={handleExpectedSoldiersChange}
+                />
+                {expectedSoldiers > 0 && detectionMetadata.final_count !== undefined && (
+                  <span style={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'var(--text-highlight)' }}>
+                    Recall: {((detectionMetadata.final_count / expectedSoldiers) * 100).toFixed(2)}%
+                  </span>
+                )}
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ padding: '4px 8px', fontSize: '0.8rem' }}
+                  onClick={handleSaveBenchmark}
+                  disabled={!expectedSoldiers || expectedSoldiers <= 0}
+                >
+                  Save Benchmark
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {benchmarks.length > 0 && (
+            <div className="cv-benchmark-summary" style={{ padding: '16px', background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', marginBottom: '8px' }}>
+              <h4 style={{ marginTop: 0, marginBottom: '12px' }}>Benchmark Summary</h4>
+              <dl style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', margin: 0, fontSize: '0.85rem' }}>
+                <div><dt>Images Tested</dt><dd>{benchmarks.length}</dd></div>
+                <div><dt>Zero Detection</dt><dd>{benchmarks.filter(b => b.detected_soldiers === 0).length}</dd></div>
+                <div><dt>Average Recall</dt><dd>{(benchmarks.reduce((a, b) => a + b.estimated_recall, 0) / benchmarks.length * 100).toFixed(2)}%</dd></div>
+                <div>
+                  <dt>Median Recall</dt>
+                  <dd>
+                    {(() => {
+                      const sorted = [...benchmarks].map(b => b.estimated_recall).sort((a,b) => a-b);
+                      const med = sorted.length % 2 === 0 
+                        ? (sorted[sorted.length/2 - 1] + sorted[sorted.length/2]) / 2 
+                        : sorted[Math.floor(sorted.length/2)];
+                      return (med * 100).toFixed(2) + '%';
+                    })()}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          )}
+
           <div className="cv-detection-list">
             {detections.map((det) => (
               <article key={det.id} className="cv-detection-row">
@@ -1057,30 +1581,53 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
 
       <section className="panel drone-marking-panel">
         <div className="panel-title">
-          <h3>Drone Image Marking Demo</h3>
-          <span>{manualDronePoints.length} manual fix{manualDronePoints.length !== 1 ? 'es' : ''}</span>
+          <h3>Drone Image Marking</h3>
+          <span>{manualDronePoints.length} manual tag{manualDronePoints.length !== 1 ? 's' : ''}</span>
         </div>
         <p className="manual-demo-note">
-          Upload a drone frame, run local YOLO inference, then manually confirm or tag soldiers by ResQBand ID.
+          Upload one or more drone frames. Run YOLO automatically, or review each image and add missing tags manually.
         </p>
 
         <div className="drone-marking-grid">
           <div className="drone-upload-column">
             <label className="drone-file-control">
-              <span>Upload drone frame</span>
-              <input type="file" accept="image/*" onChange={handleManualImageChange} />
+              <span>Select drone frames</span>
+              <input
+                id="drone-file-input"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleManualImageChange}
+              />
             </label>
-            <div className="drone-action-row">
-              <button type="button" onClick={runYoloOnUploadedImage} disabled={!selectedImageFile || isRunningYolo}>
-                {isRunningYolo ? 'Running YOLO...' : 'Run YOLO on Uploaded Image'}
-              </button>
-              <button type="button" onClick={saveManualMarkers} disabled={isSavingMarkers}>
-                {isSavingMarkers ? 'Saving...' : 'Save Tactical Tags'}
-              </button>
-              <button type="button" onClick={exportTrainingDataset} disabled={isExportingDataset}>
-                {isExportingDataset ? 'Exporting...' : 'Export Training Dataset'}
-              </button>
-            </div>
+
+            {/* Single-image manual actions */}
+              <div className="drone-action-row">
+                <button
+                  id="btn-run-yolo"
+                  type="button"
+                  onClick={runYoloOnUploadedImage}
+                  disabled={!selectedImageFile || isRunningYolo}
+                >
+                  {isRunningYolo ? 'Running YOLO...' : 'Run YOLO'}
+                </button>
+                <button
+                  id="btn-save-tags"
+                  type="button"
+                  onClick={saveManualMarkers}
+                  disabled={isSavingMarkers}
+                >
+                  {isSavingMarkers ? 'Saving...' : 'Save Tactical Tags'}
+                </button>
+                <button
+                  id="btn-export-dataset"
+                  type="button"
+                  onClick={exportTrainingDataset}
+                  disabled={isExportingDataset}
+                >
+                  {isExportingDataset ? 'Exporting...' : 'Export Training Dataset'}
+                </button>
+              </div>
             {backendError ? (
               <div className="cv-backend-error">
                 <strong>Local YOLO backend is not running.</strong>
@@ -1090,16 +1637,8 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
               </div>
             ) : null}
             {serverStatus ? <div className="cv-server-status">{serverStatus}</div> : null}
-            {datasetExport ? (
-              <div className="cv-server-status">
-                <strong>Dataset exported successfully.</strong>
-                <span>Images: {datasetExport.images}</span>
-                <span>Labels: {datasetExport.labels}</span>
-                <a href="http://127.0.0.1:8000/api/dataset/download" download={datasetExport.zip_path}>
-                  Download {datasetExport.zip_path}
-                </a>
-              </div>
-            ) : null}
+
+            {/* Old Build Summary removed */}
             {yoloNoDetections ? (
               <div className="cv-yolo-empty">
                 YOLO did not detect soldiers automatically in this overhead frame. Use Manual Tactical Tagging to mark soldiers and link them to ResQBand IDs.
@@ -1203,6 +1742,8 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
           </aside>
         </div>
       </section>
+        </div>
+      </details>
     </section>
   );
 }
