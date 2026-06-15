@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import pathlib
 import shutil
+import argparse
 
 import cv2
 
@@ -11,9 +12,7 @@ DRAFT_DIR = pathlib.Path("dataset_draft")
 DRAFT_IMAGES_DIR = DRAFT_DIR / "images"
 DRAFT_LABELS_DIR = DRAFT_DIR / "labels"
 MANIFEST_PATH = DRAFT_DIR / "manifest.json"
-DATASET_DIR = pathlib.Path("dataset")
-APPROVED_IMAGES_DIR = DATASET_DIR / "images"
-APPROVED_LABELS_DIR = DATASET_DIR / "labels"
+APPROVED_DATASET_ROOT = pathlib.Path("dataset_approved_v2")
 
 
 def load_manifest() -> dict:
@@ -45,11 +44,28 @@ def draw_boxes(image, label_path: pathlib.Path):
     return preview
 
 
-def copy_approved(image_path: pathlib.Path, label_path: pathlib.Path, background: bool = False) -> None:
-    APPROVED_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-    APPROVED_LABELS_DIR.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(image_path, APPROVED_IMAGES_DIR / image_path.name)
-    target_label = APPROVED_LABELS_DIR / label_path.name
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Manually review draft YOLO labels.")
+    parser.add_argument(
+        "--dataset-root",
+        type=pathlib.Path,
+        default=APPROVED_DATASET_ROOT,
+        help="Approved dataset root. Defaults to dataset_approved_v2.",
+    )
+    return parser.parse_args()
+
+
+def copy_approved(
+    image_path: pathlib.Path,
+    label_path: pathlib.Path,
+    approved_images_dir: pathlib.Path,
+    approved_labels_dir: pathlib.Path,
+    background: bool = False,
+) -> None:
+    approved_images_dir.mkdir(parents=True, exist_ok=True)
+    approved_labels_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(image_path, approved_images_dir / image_path.name)
+    target_label = approved_labels_dir / label_path.name
     if background:
         target_label.write_text("", encoding="utf-8")
     else:
@@ -61,9 +77,16 @@ def count_status(manifest: dict, status: str) -> int:
 
 
 def main() -> int:
+    args = parse_args()
+    approved_images_dir = args.dataset_root / "images"
+    approved_labels_dir = args.dataset_root / "labels"
+    approved_images_dir.mkdir(parents=True, exist_ok=True)
+    approved_labels_dir.mkdir(parents=True, exist_ok=True)
+
     manifest = load_manifest()
     image_paths = sorted(DRAFT_IMAGES_DIR.glob("*.jpg"))
     total = len(image_paths)
+    print(f"[OUTPUT] Approved samples will be copied to {args.dataset_root}")
 
     for index, image_path in enumerate(image_paths, start=1):
         row = manifest.setdefault(image_path.stem, {"auto_persons": 0, "status": "unreviewed"})
@@ -93,10 +116,10 @@ def main() -> int:
             print("[REVIEW] Progress saved.")
             return 0
         if key == ord("a"):
-            copy_approved(image_path, label_path)
+            copy_approved(image_path, label_path, approved_images_dir, approved_labels_dir)
             row["status"] = "approved"
         elif key == ord("e"):
-            copy_approved(image_path, label_path, background=True)
+            copy_approved(image_path, label_path, approved_images_dir, approved_labels_dir, background=True)
             row["status"] = "background"
         else:
             row["status"] = "skipped"
@@ -107,7 +130,7 @@ def main() -> int:
     background = count_status(manifest, "background")
     skipped = count_status(manifest, "skipped")
     print(f"[REVIEW DONE] Approved: {approved} | Background: {background} | Skipped: {skipped}")
-    print("Run scripts/prepare_dataset.py to split and zip.")
+    print(f"Run scripts/prepare_dataset.py --dataset-root {args.dataset_root} to split.")
     return 0
 
 

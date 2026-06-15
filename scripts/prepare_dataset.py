@@ -1,17 +1,12 @@
 from __future__ import annotations
 
+import argparse
 import pathlib
 import random
 import shutil
 
 
-DATASET_DIR = pathlib.Path("dataset")
-IMAGES_DIR = DATASET_DIR / "images"
-LABELS_DIR = DATASET_DIR / "labels"
-TRAIN_IMG_DIR = IMAGES_DIR / "train"
-VAL_IMG_DIR = IMAGES_DIR / "val"
-TRAIN_LBL_DIR = LABELS_DIR / "train"
-VAL_LBL_DIR = LABELS_DIR / "val"
+DEFAULT_DATASET_ROOT = pathlib.Path("dataset_approved_v2")
 MIN_APPROVED_FRAMES = 10
 RANDOM_SEED = 42
 
@@ -22,16 +17,27 @@ def read_label(label_path: pathlib.Path) -> str:
     return label_path.read_text(encoding="utf-8").strip()
 
 
-def collect_flat_samples() -> list[tuple[pathlib.Path, pathlib.Path, bool]]:
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Split approved YOLO samples into train/val.")
+    parser.add_argument(
+        "--dataset-root",
+        type=pathlib.Path,
+        default=DEFAULT_DATASET_ROOT,
+        help="Approved dataset root. Defaults to dataset_approved_v2.",
+    )
+    return parser.parse_args()
+
+
+def collect_flat_samples(images_dir: pathlib.Path, labels_dir: pathlib.Path) -> list[tuple[pathlib.Path, pathlib.Path, bool]]:
     samples = []
-    for image_path in sorted(IMAGES_DIR.glob("*.jpg")):
-        label_path = LABELS_DIR / f"{image_path.stem}.txt"
+    for image_path in sorted(images_dir.glob("*.jpg")):
+        label_path = labels_dir / f"{image_path.stem}.txt"
         samples.append((image_path, label_path, bool(read_label(label_path))))
     return samples
 
 
-def reset_split_dirs() -> None:
-    for directory in (TRAIN_IMG_DIR, VAL_IMG_DIR, TRAIN_LBL_DIR, VAL_LBL_DIR):
+def reset_split_dirs(*directories: pathlib.Path) -> None:
+    for directory in directories:
         if directory.exists():
             shutil.rmtree(directory)
         directory.mkdir(parents=True, exist_ok=True)
@@ -58,32 +64,41 @@ def choose_validation(samples: list[tuple[pathlib.Path, pathlib.Path, bool]]) ->
     return {sample[0].stem for sample in val_samples}
 
 
-def write_data_yaml() -> None:
+def write_data_yaml(dataset_root: pathlib.Path) -> None:
     yaml_content = """path: .
 train: images/train
 val: images/val
 nc: 1
 names: ['person']
 """
-    (DATASET_DIR / "data.yaml").write_text(yaml_content, encoding="utf-8")
+    (dataset_root / "data.yaml").write_text(yaml_content, encoding="utf-8")
 
 
 def main() -> int:
-    samples = collect_flat_samples()
+    args = parse_args()
+    dataset_root = args.dataset_root
+    images_dir = dataset_root / "images"
+    labels_dir = dataset_root / "labels"
+    train_img_dir = images_dir / "train"
+    val_img_dir = images_dir / "val"
+    train_lbl_dir = labels_dir / "train"
+    val_lbl_dir = labels_dir / "val"
+
+    samples = collect_flat_samples(images_dir, labels_dir)
     if len(samples) < MIN_APPROVED_FRAMES:
         print("[ERROR] Not enough approved frames.")
         print("Review more frames with scripts/review_dataset.py")
         return 1
 
     val_stems = choose_validation(samples)
-    reset_split_dirs()
+    reset_split_dirs(train_img_dir, val_img_dir, train_lbl_dir, val_lbl_dir)
 
     train_count = 0
     val_count = 0
     for image_path, label_path, _has_person in samples:
         is_val = image_path.stem in val_stems
-        image_target = (VAL_IMG_DIR if is_val else TRAIN_IMG_DIR) / image_path.name
-        label_target = (VAL_LBL_DIR if is_val else TRAIN_LBL_DIR) / f"{image_path.stem}.txt"
+        image_target = (val_img_dir if is_val else train_img_dir) / image_path.name
+        label_target = (val_lbl_dir if is_val else train_lbl_dir) / f"{image_path.stem}.txt"
         shutil.copy2(image_path, image_target)
         if label_path.exists():
             shutil.copy2(label_path, label_target)
@@ -94,9 +109,9 @@ def main() -> int:
         else:
             train_count += 1
 
-    write_data_yaml()
+    write_data_yaml(dataset_root)
     print(f"Train: {train_count} | Val: {val_count}")
-    print("dataset/data.yaml created")
+    print(f"{dataset_root / 'data.yaml'} created")
     return 0
 
 
