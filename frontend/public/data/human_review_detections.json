@@ -1,0 +1,240 @@
+{
+  "source": "human_review_demo",
+  "timestamp": "2026-06-15T13:38:50.055246Z",
+  "image_path": "dataset_approved_v2\\images\\frame_0065.jpg",
+  "output_image_path": "frontend\\public\\data\\human_review_preview.jpg",
+  "detection_count": 11,
+  "detections": [
+    {
+      "class": "person",
+      "bbox": [
+        126,
+        314,
+        234,
+        404
+      ],
+      "xyxy": [
+        126,
+        314,
+        360,
+        718
+      ],
+      "normalized_bbox": {
+        "x_center": 0.189844,
+        "y_center": 0.716667,
+        "width": 0.182812,
+        "height": 0.561111
+      }
+    },
+    {
+      "class": "person",
+      "bbox": [
+        371,
+        205,
+        139,
+        413
+      ],
+      "xyxy": [
+        371,
+        205,
+        510,
+        618
+      ],
+      "normalized_bbox": {
+        "x_center": 0.344141,
+        "y_center": 0.571528,
+        "width": 0.108594,
+        "height": 0.573611
+      }
+    },
+    {
+      "class": "person",
+      "bbox": [
+        514,
+        160,
+        78,
+        386
+      ],
+      "xyxy": [
+        514,
+        160,
+        592,
+        546
+      ],
+      "normalized_bbox": {
+        "x_center": 0.432031,
+        "y_center": 0.490278,
+        "width": 0.060937,
+        "height": 0.536111
+      }
+    },
+    {
+      "class": "person",
+      "bbox": [
+        604,
+        161,
+        60,
+        238
+      ],
+      "xyxy": [
+        604,
+        161,
+        664,
+        399
+      ],
+      "normalized_bbox": {
+        "x_center": 0.495312,
+        "y_center": 0.388889,
+        "width": 0.046875,
+        "height": 0.330556
+      }
+    },
+    {
+      "class": "person",
+      "bbox": [
+        661,
+        147,
+        30,
+        172
+      ],
+      "xyxy": [
+        661,
+        147,
+        691,
+        319
+      ],
+      "normalized_bbox": {
+        "x_center": 0.528125,
+        "y_center": 0.323611,
+        "width": 0.023438,
+        "height": 0.238889
+      }
+    },
+    {
+      "class": "person",
+      "bbox": [
+        696,
+        146,
+        29,
+        119
+      ],
+      "xyxy": [
+        696,
+        146,
+        725,
+        265
+      ],
+      "normalized_bbox": {
+        "x_center": 0.555078,
+        "y_center": 0.285417,
+        "width": 0.022656,
+        "height": 0.165278
+      }
+    },
+    {
+      "class": "person",
+      "bbox": [
+        687,
+        67,
+        44,
+        92
+      ],
+      "xyxy": [
+        687,
+        67,
+        731,
+        159
+      ],
+      "normalized_bbox": {
+        "x_center": 0.553906,
+        "y_center": 0.156944,
+        "width": 0.034375,
+        "height": 0.127778
+      }
+    },
+    {
+      "class": "person",
+      "bbox": [
+        737,
+        156,
+        46,
+        137
+      ],
+      "xyxy": [
+        737,
+        156,
+        783,
+        293
+      ],
+      "normalized_bbox": {
+        "x_center": 0.59375,
+        "y_center": 0.311806,
+        "width": 0.035937,
+        "height": 0.190278
+      }
+    },
+    {
+      "class": "person",
+      "bbox": [
+        792,
+        171,
+        58,
+        105
+      ],
+      "xyxy": [
+        792,
+        171,
+        850,
+        276
+      ],
+      "normalized_bbox": {
+        "x_center": 0.641406,
+        "y_center": 0.310417,
+        "width": 0.045312,
+        "height": 0.145833
+      }
+    },
+    {
+      "class": "person",
+      "bbox": [
+        812,
+        205,
+        88,
+        311
+      ],
+      "xyxy": [
+        812,
+        205,
+        900,
+        516
+      ],
+      "normalized_bbox": {
+        "x_center": 0.66875,
+        "y_center": 0.500694,
+        "width": 0.06875,
+        "height": 0.431944
+      }
+    },
+    {
+      "class": "person",
+      "bbox": [
+        924,
+        326,
+        219,
+        393
+      ],
+      "xyxy": [
+        924,
+        326,
+        1143,
+        719
+      ],
+      "normalized_bbox": {
+        "x_center": 0.807422,
+        "y_center": 0.725694,
+        "width": 0.171094,
+        "height": 0.545833
+      }
+    }
+  ]
+}
