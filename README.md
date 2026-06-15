@@ -15,14 +15,16 @@ A simulated drone observes the battlefield while soldiers continuously transmit 
 > *"ResQVision does not only rank casualties. It converts GPU-computed risk into operational recommendations."*
 
 ResQVision includes:
-* CUDA Attention Engine
+* CUDA Attention Engine with CPU, basic CUDA, and tiled CUDA implementations
 * JSON export pipeline
 * React tactical dashboard
 * Attention visualization layer
 * Rule-based operational recommendations
 * YOLO computer vision integration
 
-The dashboard consumes CUDA-generated outputs and visualizes battlefield decision-support information.
+The CUDA attention implementation is the core academic contribution. The React dashboard, YOLO integration, and human-reviewed visual annotation flow are demo and integration layers that make the CUDA results understandable in an operational scenario.
+
+Detailed CUDA design notes are available in [`docs/CUDA_ATTENTION_DESIGN.md`](docs/CUDA_ATTENTION_DESIGN.md).
 
 ---
 
@@ -699,11 +701,11 @@ The system computes:
 * Data flow overview
 
 ### Computer Vision
-* YOLO person detection results
-* Confidence scores per detection
-* Bounding box coordinates
-* Live refresh indicator (ג— LIVE) when webcam script is running
-* Automatic fallback to mock data when no detection file is present
+* Human-reviewed tactical annotation preview for presentation mode
+* YOLO person detection as an experimental visual localization layer
+* Raw YOLO debug output available with `?debug=1`
+* Bounding box coordinates and detection metadata for integration tests
+* Automatic fallback behavior when generated visual files are missing
 
 ---
 
@@ -802,25 +804,30 @@ Recommended Actions ג†’ Tactical Dashboard
 
 Current CUDA kernels:
 
-1. QKבµ€ Matrix Multiplication
-2. Attention Scaling (1/גˆd)
-3. Row-wise Softmax (numerically stable)
-4. Attention ֳ— V Computation
+1. Basic `Q * K^T` matrix multiplication.
+2. Tiled shared-memory `Q * K^T` matrix multiplication.
+3. Attention scaling by `1 / sqrt(d)`.
+4. Row-wise Softmax with numerical stability.
+5. Basic `Attention * V` matrix multiplication.
+6. Tiled shared-memory `Attention * V` matrix multiplication.
 
 The implementation demonstrates:
 
 * Thread-to-data mapping
 * Grid and block configuration
-* Global memory operations
+* Global memory baseline operations
+* Shared memory tiling
 * Numerical stability in Softmax
-* CPU/GPU correctness validation
+* CPU reference vs CUDA basic vs CUDA tiled benchmarking
+* CPU/GPU correctness validation using maximum absolute error and top-10 ranking overlap
 
-Future versions will introduce:
+The tiled CUDA implementation uses:
 
-* Shared Memory Tiling
-* Optimized Matrix Multiplication
-* Kernel Fusion
-* Larger-scale battlefield simulations
+```text
+TILE_WIDTH = 16
+```
+
+Shared memory tiling is applied to both `Q * K^T` and `Attention * V` to reduce repeated global-memory reads.
 
 ---
 
@@ -834,12 +841,11 @@ The core CUDA computation implements the Scaled Dot-Product Attention mechanism:
 Attention(Q, K, V) = softmax((Q ֳ— Kבµ€) / sqrt(d)) ֳ— V
 ```
 
-The computation is divided into four CUDA kernels:
+The benchmark compares three implementations of the same attention core:
 
-1. QKבµ€ Matrix Multiplication
-2. Attention Scaling
-3. Row-wise Softmax
-4. Attention ֳ— V Multiplication
+1. CPU reference implementation.
+2. Basic CUDA implementation.
+3. Tiled CUDA implementation using shared memory.
 
 For the matrix multiplication stage, each CUDA thread computes exactly one output element:
 
@@ -851,7 +857,8 @@ col = blockIdx.x * blockDim.x + threadIdx.x;
 Each thread calculates:
 
 ```text
-score[row][col]
+score[row][col] for Q * K^T
+output[row][col] for Attention * V
 ```
 
 This mapping was selected because every output element is independent and can be computed in parallel.
@@ -876,8 +883,9 @@ because the attention score matrix is naturally two-dimensional.
 A typical configuration is:
 
 ```text
-16 ֳ— 16 Threads per Block
-= 256 Threads
+TILE_WIDTH = 16
+16 x 16 threads per block
+= 256 threads
 ```
 
 This configuration was chosen because it:
@@ -890,7 +898,7 @@ This configuration was chosen because it:
 
 ### Memory Design Decisions
 
-The baseline implementation primarily uses global memory.
+The basic CUDA implementation primarily uses global memory.
 
 This choice was made to:
 
@@ -908,6 +916,13 @@ Separate kernels were intentionally used for:
 
 This follows the project requirements and makes each stage independently testable.
 
+The tiled CUDA implementation uses shared memory for the two matrix multiplication stages:
+
+* `Q * K^T`
+* `Attention * V`
+
+Each block loads a `16 x 16` tile into shared memory, synchronizes the block, accumulates partial dot products, and then advances to the next tile. This reduces repeated global-memory access compared with the basic CUDA path.
+
 ### CPU vs GPU Validation
 
 The CUDA implementation is validated against a reference CPU implementation.
@@ -919,13 +934,14 @@ Validation includes:
 - Top-10 ranking overlap
 - Benchmark comparison
 
-The project demonstrates approximately:
+The Colab Tesla T4 validation produced:
 
 ```text
-49ֳ— GPU Speedup
+Top-10 overlap: 10/10
+Max absolute error: approximately 1e-6 to 2.5e-6
 ```
 
-for the main benchmark configuration.
+Both CUDA basic and CUDA tiled are validated against the CPU reference.
 
 ### Current Bottlenecks
 
@@ -996,17 +1012,36 @@ Metrics:
 * Speedup factor
 * Numerical correctness
 
+### Colab Tesla T4 Benchmark
+
+The following measured results were validated in Google Colab on a Tesla T4:
+
+| N | CPU Reference | CUDA Basic | CUDA Tiled | Tiled Speedup vs CPU | Correctness |
+|---:|---:|---:|---:|---:|---|
+| 128 | 2.674 ms | 0.088 ms | 0.041 ms | 64.819x | PASS |
+| 256 | 11.259 ms | 0.243 ms | 0.086 ms | 131.187x | PASS |
+| 512 | 46.049 ms | 0.836 ms | 0.248 ms | 185.682x | PASS |
+| 1024 | 183.423 ms | 3.200 ms | 0.861 ms | 213.061x | PASS |
+
+In the Colab Tesla T4 benchmark, the tiled CUDA implementation reached up to 213x speedup over the CPU reference for N=1024.
+
+Correctness validation:
+
+* Top-10 ranking overlap: `10/10`
+* Maximum absolute error: approximately `1e-6` to `2.5e-6`
+
 ---
 
 ## Current Demonstrated Results
 
-* **49ֳ— GPU acceleration** (512 soldiers benchmark)
+* CPU reference, CUDA basic, and CUDA tiled attention implementations
+* Shared-memory tiled matrix multiplication for `Q * K^T` and `Attention * V`
 * Successful CPU/GPU correctness validation
 * Top-10 overlap validation
 * Attention-based casualty prioritization
 * Tactical map with attention halo visualization
 * Rule-based Recommended Action Engine
-* YOLO computer vision integration
+* YOLO and human-reviewed visual annotation as demo/integration layers
 
 ---
 
