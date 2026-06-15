@@ -25,6 +25,25 @@
         }                                                                       \
     } while (0)
 
+/*
+CUDA Design Summary
+-------------------
+This file implements the course-required Scaled Dot-Product Attention pipeline:
+    Attention(Q, K, V) = softmax((Q * K^T) / sqrt(d)) * V
+
+Two CUDA implementations are kept intentionally:
+1. Basic CUDA path - one output element per thread, mostly global memory.
+2. Tiled CUDA path - shared-memory tiles for QK^T and Attention*V.
+
+Keeping both paths makes the benchmark match the project requirement of comparing:
+CPU naive implementation, basic CUDA implementation, and improved CUDA implementation.
+The presentation dashboard uses the tiled path as the main GPU result, while the CSV
+also stores the basic path for analysis.
+*/
+
+constexpr int TILE_WIDTH = 16;
+
+
 struct Soldier {
     int soldier_id;
     float x;
@@ -41,12 +60,18 @@ struct Soldier {
 struct BenchmarkRow {
     int N;
     float cpu_ms;
-    float gpu_ms;
-    float speedup;
-    bool correctness;
-    float max_abs_error;
-    float mean_abs_error;
-    int top10_overlap;
+    float gpu_basic_ms;
+    float gpu_tiled_ms;
+    float speedup_basic;
+    float speedup_tiled;
+    bool basic_correctness;
+    bool tiled_correctness;
+    float basic_max_abs_error;
+    float basic_mean_abs_error;
+    float tiled_max_abs_error;
+    float tiled_mean_abs_error;
+    int basic_top10_overlap;
+    int tiled_top10_overlap;
 };
 
 static float clamp01(float value) {
@@ -216,6 +241,27 @@ static void attention_cpu(const std::vector<float>& X,
     }
 }
 
+// Fair CPU reference for the CUDA benchmark.
+// Q, K and V are precomputed once so CPU, basic GPU, and tiled GPU all measure
+// the same attention core instead of mixing projection cost into only one side.
+static void attention_cpu_core(const std::vector<float>& Q,
+                               const std::vector<float>& K,
+                               const std::vector<float>& V,
+                               std::vector<float>& output,
+                               std::vector<float>* attention_out,
+                               int N,
+                               int d_model) {
+    std::vector<float> scores(N * N), attention(N * N);
+    qk_transpose_cpu(Q, K, scores, N, d_model);
+    attention = scores;
+    softmax_rows_cpu(attention, N, N);
+    matmul_cpu(attention, V, output, N, N, d_model);
+
+    if (attention_out) {
+        *attention_out = attention;
+    }
+}
+
 // Thread mapping: blockIdx.y/threadIdx.y select a row and blockIdx.x/threadIdx.x
 // select a column. Each valid thread computes one scores[row, col] element.
 // The boundary check protects edge blocks when N is not a multiple of block size.
@@ -231,6 +277,54 @@ __global__ void qk_transpose_kernel(const float* Q,
         for (int k = 0; k < d_model; ++k) {
             sum += Q[row * d_model + k] * K[col * d_model + k];
         }
+        scores[row * N + col] = sum;
+    }
+}
+
+
+// Improved QK^T kernel using shared-memory tiling.
+// Each block computes a TILE_WIDTH x TILE_WIDTH tile of the N x N score matrix.
+// Threads cooperatively load a tile of Q and a tile of K from global memory into
+// shared memory, reuse those values inside the block, and then advance along d.
+__global__ void qk_transpose_tiled_kernel(const float* Q,
+                                          const float* K,
+                                          float* scores,
+                                          int N,
+                                          int d_model) {
+    __shared__ float q_tile[TILE_WIDTH][TILE_WIDTH];
+    __shared__ float k_tile[TILE_WIDTH][TILE_WIDTH];
+
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    int col = blockIdx.x * TILE_WIDTH + tx;
+    int row = blockIdx.y * TILE_WIDTH + ty;
+
+    float sum = 0.0f;
+    int num_tiles = (d_model + TILE_WIDTH - 1) / TILE_WIDTH;
+
+    for (int tile = 0; tile < num_tiles; ++tile) {
+        int q_col = tile * TILE_WIDTH + tx;
+        int k_col = tile * TILE_WIDTH + ty;
+
+        q_tile[ty][tx] = (row < N && q_col < d_model)
+            ? Q[row * d_model + q_col]
+            : 0.0f;
+
+        // k_tile[i][tx] will contain K[col, tile*TILE_WIDTH + i].
+        k_tile[ty][tx] = (col < N && k_col < d_model)
+            ? K[col * d_model + k_col]
+            : 0.0f;
+
+        __syncthreads();
+
+        for (int i = 0; i < TILE_WIDTH; ++i) {
+            sum += q_tile[ty][i] * k_tile[i][tx];
+        }
+
+        __syncthreads();
+    }
+
+    if (row < N && col < N) {
         scores[row * N + col] = sum;
     }
 }
@@ -292,8 +386,7 @@ __global__ void row_softmax_kernel(float* scores, int N) {
 }
 
 // Thread mapping: row is a soldier and col is an output embedding dimension.
-// The basic version uses global memory only. Shared-memory tiling could be
-// added later for QK^T and attention@V to reduce repeated global reads.
+// Basic version: each thread computes one output[row, col] element using global memory.
 __global__ void attention_v_kernel(const float* attention,
                                    const float* V,
                                    float* output,
@@ -310,6 +403,57 @@ __global__ void attention_v_kernel(const float* attention,
     }
 }
 
+
+// Improved Attention*V kernel using shared-memory tiling.
+// This is the same matrix multiplication pattern taught for tiled matmul:
+// Attention is N x N, V is N x d_model, and the output is N x d_model.
+__global__ void attention_v_tiled_kernel(const float* attention,
+                                         const float* V,
+                                         float* output,
+                                         int N,
+                                         int d_model) {
+    __shared__ float attention_tile[TILE_WIDTH][TILE_WIDTH];
+    __shared__ float v_tile[TILE_WIDTH][TILE_WIDTH];
+
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    int col = blockIdx.x * TILE_WIDTH + tx;
+    int row = blockIdx.y * TILE_WIDTH + ty;
+
+    float sum = 0.0f;
+    int num_tiles = (N + TILE_WIDTH - 1) / TILE_WIDTH;
+
+    for (int tile = 0; tile < num_tiles; ++tile) {
+        int k_for_attention = tile * TILE_WIDTH + tx;
+        int k_for_v = tile * TILE_WIDTH + ty;
+
+        attention_tile[ty][tx] = (row < N && k_for_attention < N)
+            ? attention[row * N + k_for_attention]
+            : 0.0f;
+
+        v_tile[ty][tx] = (k_for_v < N && col < d_model)
+            ? V[k_for_v * d_model + col]
+            : 0.0f;
+
+        __syncthreads();
+
+        for (int i = 0; i < TILE_WIDTH; ++i) {
+            sum += attention_tile[ty][i] * v_tile[i][tx];
+        }
+
+        __syncthreads();
+    }
+
+    if (row < N && col < d_model) {
+        output[row * d_model + col] = sum;
+    }
+}
+
+enum class GpuAttentionMode {
+    Basic,
+    Tiled
+};
+
 static void attention_gpu(const std::vector<float>& Q,
                           const std::vector<float>& K,
                           const std::vector<float>& V,
@@ -317,6 +461,7 @@ static void attention_gpu(const std::vector<float>& Q,
                           std::vector<float>* attention_out,
                           int N,
                           int d_model,
+                          GpuAttentionMode mode,
                           float* elapsed_ms) {
     float *d_Q = nullptr, *d_K = nullptr, *d_V = nullptr, *d_scores = nullptr, *d_output = nullptr;
     size_t nd_bytes = static_cast<size_t>(N) * d_model * sizeof(float);
@@ -337,10 +482,15 @@ static void attention_gpu(const std::vector<float>& Q,
     CUDA_CHECK(cudaEventCreate(&stop));
     CUDA_CHECK(cudaEventRecord(start));
 
-    dim3 block2d(16, 16);
+    dim3 block2d(TILE_WIDTH, TILE_WIDTH);
     dim3 grid_scores((N + block2d.x - 1) / block2d.x,
                      (N + block2d.y - 1) / block2d.y);
-    qk_transpose_kernel<<<grid_scores, block2d>>>(d_Q, d_K, d_scores, N, d_model);
+
+    if (mode == GpuAttentionMode::Tiled) {
+        qk_transpose_tiled_kernel<<<grid_scores, block2d>>>(d_Q, d_K, d_scores, N, d_model);
+    } else {
+        qk_transpose_kernel<<<grid_scores, block2d>>>(d_Q, d_K, d_scores, N, d_model);
+    }
     CUDA_CHECK(cudaGetLastError());
 
     scale_kernel<<<grid_scores, block2d>>>(d_scores, N, 1.0f / std::sqrt(static_cast<float>(d_model)));
@@ -353,7 +503,12 @@ static void attention_gpu(const std::vector<float>& Q,
 
     dim3 grid_output((d_model + block2d.x - 1) / block2d.x,
                      (N + block2d.y - 1) / block2d.y);
-    attention_v_kernel<<<grid_output, block2d>>>(d_scores, d_V, d_output, N, d_model);
+
+    if (mode == GpuAttentionMode::Tiled) {
+        attention_v_tiled_kernel<<<grid_output, block2d>>>(d_scores, d_V, d_output, N, d_model);
+    } else {
+        attention_v_kernel<<<grid_output, block2d>>>(d_scores, d_V, d_output, N, d_model);
+    }
     CUDA_CHECK(cudaGetLastError());
 
     CUDA_CHECK(cudaEventRecord(stop));
@@ -470,73 +625,124 @@ static BenchmarkRow run_case(int N, int d_model, bool keep_default_outputs,
     std::vector<float> Wk = make_weight_matrix(d_model, 17);
     std::vector<float> Wv = make_weight_matrix(d_model, 31);
     std::vector<float> Q(N * d_model), K(N * d_model), V(N * d_model);
-    std::vector<float> cpu_output(N * d_model), gpu_output(N * d_model);
-    std::vector<float> gpu_attention;
+    std::vector<float> cpu_output(N * d_model);
+    std::vector<float> gpu_basic_output(N * d_model), gpu_tiled_output(N * d_model);
+    std::vector<float> gpu_tiled_attention;
 
+    // Q/K/V projection is generated once on the host. The benchmark compares the
+    // attention core itself: QK^T, scaling, softmax, and Attention*V.
     matmul_cpu(X, Wq, Q, N, d_model, d_model);
     matmul_cpu(X, Wk, K, N, d_model, d_model);
     matmul_cpu(X, Wv, V, N, d_model, d_model);
 
     const int benchmark_repeats = 5;
     std::vector<float> cpu_times;
-    std::vector<float> gpu_times;
+    std::vector<float> gpu_basic_times;
+    std::vector<float> gpu_tiled_times;
     cpu_times.reserve(benchmark_repeats);
-    gpu_times.reserve(benchmark_repeats);
+    gpu_basic_times.reserve(benchmark_repeats);
+    gpu_tiled_times.reserve(benchmark_repeats);
 
     for (int repeat = 0; repeat < benchmark_repeats; ++repeat) {
         auto cpu_start = std::chrono::high_resolution_clock::now();
-        attention_cpu(X, Wq, Wk, Wv, cpu_output, nullptr, N, d_model);
+        attention_cpu_core(Q, K, V, cpu_output, nullptr, N, d_model);
         auto cpu_stop = std::chrono::high_resolution_clock::now();
         cpu_times.push_back(std::chrono::duration<float, std::milli>(cpu_stop - cpu_start).count());
     }
 
     std::vector<float> warmup_output(N * d_model);
     float warmup_ms = 0.0f;
-    attention_gpu(Q, K, V, warmup_output, nullptr, N, d_model, &warmup_ms);
+    attention_gpu(Q, K, V, warmup_output, nullptr, N, d_model, GpuAttentionMode::Basic, &warmup_ms);
+    attention_gpu(Q, K, V, warmup_output, nullptr, N, d_model, GpuAttentionMode::Tiled, &warmup_ms);
+
+    for (int repeat = 0; repeat < benchmark_repeats; ++repeat) {
+        float elapsed_ms = 0.0f;
+        attention_gpu(Q, K, V, gpu_basic_output, nullptr,
+                      N, d_model, GpuAttentionMode::Basic, &elapsed_ms);
+        gpu_basic_times.push_back(elapsed_ms);
+    }
 
     for (int repeat = 0; repeat < benchmark_repeats; ++repeat) {
         float elapsed_ms = 0.0f;
         bool capture_outputs = keep_default_outputs && (repeat == benchmark_repeats - 1);
-        attention_gpu(Q, K, V, gpu_output, capture_outputs ? &gpu_attention : nullptr,
-                      N, d_model, &elapsed_ms);
-        gpu_times.push_back(elapsed_ms);
+        attention_gpu(Q, K, V, gpu_tiled_output, capture_outputs ? &gpu_tiled_attention : nullptr,
+                      N, d_model, GpuAttentionMode::Tiled, &elapsed_ms);
+        gpu_tiled_times.push_back(elapsed_ms);
     }
 
     float cpu_ms = median_ms(cpu_times);
-    float gpu_ms = median_ms(gpu_times);
+    float gpu_basic_ms = median_ms(gpu_basic_times);
+    float gpu_tiled_ms = median_ms(gpu_tiled_times);
 
-    float max_err = 0.0f;
-    float mean_err = 0.0f;
-    error_metrics(cpu_output, gpu_output, &max_err, &mean_err);
-    bool pass = max_err < 1e-3f;
+    float basic_max_err = 0.0f;
+    float basic_mean_err = 0.0f;
+    float tiled_max_err = 0.0f;
+    float tiled_mean_err = 0.0f;
+    error_metrics(cpu_output, gpu_basic_output, &basic_max_err, &basic_mean_err);
+    error_metrics(cpu_output, gpu_tiled_output, &tiled_max_err, &tiled_mean_err);
+
+    bool basic_pass = basic_max_err < 1e-3f;
+    bool tiled_pass = tiled_max_err < 1e-3f;
 
     std::vector<float> cpu_risks = compute_risks(soldiers, cpu_output, d_model);
-    std::vector<float> gpu_risks = compute_risks(soldiers, gpu_output, d_model);
-    int overlap = top10_overlap(ranking_indices(cpu_risks), ranking_indices(gpu_risks));
+    std::vector<float> basic_risks = compute_risks(soldiers, gpu_basic_output, d_model);
+    std::vector<float> tiled_risks = compute_risks(soldiers, gpu_tiled_output, d_model);
+    int basic_overlap = top10_overlap(ranking_indices(cpu_risks), ranking_indices(basic_risks));
+    int tiled_overlap = top10_overlap(ranking_indices(cpu_risks), ranking_indices(tiled_risks));
 
     if (keep_default_outputs) {
         *default_soldiers = soldiers;
-        *default_gpu_output = gpu_output;
-        *default_gpu_attention = gpu_attention;
-        *default_gpu_risks = gpu_risks;
+        *default_gpu_output = gpu_tiled_output;
+        *default_gpu_attention = gpu_tiled_attention;
+        *default_gpu_risks = tiled_risks;
     }
 
-    return {N, cpu_ms, gpu_ms, cpu_ms / gpu_ms, pass, max_err, mean_err, overlap};
+    return {N,
+            cpu_ms,
+            gpu_basic_ms,
+            gpu_tiled_ms,
+            cpu_ms / gpu_basic_ms,
+            cpu_ms / gpu_tiled_ms,
+            basic_pass,
+            tiled_pass,
+            basic_max_err,
+            basic_mean_err,
+            tiled_max_err,
+            tiled_mean_err,
+            basic_overlap,
+            tiled_overlap};
 }
 
 static void write_benchmark_csv(const std::vector<BenchmarkRow>& rows) {
     std::ofstream out("benchmark_results.csv");
-    out << "N,CPU_time_ms,GPU_time_ms,speedup,correctness,max_abs_error,mean_abs_error,top10_overlap\n";
+    out << "N,CPU_time_ms,GPU_time_ms,GPU_basic_time_ms,GPU_tiled_time_ms,"
+           "speedup,speedup_basic,speedup_tiled,correctness,basic_correctness,tiled_correctness,"
+           "max_abs_error,mean_abs_error,basic_max_abs_error,basic_mean_abs_error,"
+           "tiled_max_abs_error,tiled_mean_abs_error,top10_overlap,basic_top10_overlap,tiled_top10_overlap\n";
     out << std::fixed << std::setprecision(6);
     for (const BenchmarkRow& row : rows) {
+        // GPU_time_ms / speedup / correctness keep the original schema for the frontend.
+        // They intentionally point to the improved tiled CUDA implementation.
         out << row.N << ","
             << row.cpu_ms << ","
-            << row.gpu_ms << ","
-            << row.speedup << ","
-            << (row.correctness ? "PASS" : "FAIL") << ","
-            << row.max_abs_error << ","
-            << row.mean_abs_error << ","
-            << row.top10_overlap << "\n";
+            << row.gpu_tiled_ms << ","
+            << row.gpu_basic_ms << ","
+            << row.gpu_tiled_ms << ","
+            << row.speedup_tiled << ","
+            << row.speedup_basic << ","
+            << row.speedup_tiled << ","
+            << (row.tiled_correctness ? "PASS" : "FAIL") << ","
+            << (row.basic_correctness ? "PASS" : "FAIL") << ","
+            << (row.tiled_correctness ? "PASS" : "FAIL") << ","
+            << row.tiled_max_abs_error << ","
+            << row.tiled_mean_abs_error << ","
+            << row.basic_max_abs_error << ","
+            << row.basic_mean_abs_error << ","
+            << row.tiled_max_abs_error << ","
+            << row.tiled_mean_abs_error << ","
+            << row.tiled_top10_overlap << ","
+            << row.basic_top10_overlap << ","
+            << row.tiled_top10_overlap << "\n";
     }
 }
 
@@ -616,8 +822,8 @@ int main() {
     std::vector<float> default_gpu_attention;
     std::vector<float> default_gpu_risks;
 
-    std::cout << "N | CPU time ms | GPU time ms | speedup | correctness\n";
-    std::cout << "--|-------------|-------------|---------|------------\n";
+    std::cout << "N | CPU core ms | GPU basic ms | GPU tiled ms | speedup tiled | correctness\n";
+    std::cout << "--|-------------|--------------|--------------|---------------|------------\n";
     for (int N : sizes) {
         bool keep_default = (N == default_N);
         BenchmarkRow row = run_case(N, d_model, keep_default,
@@ -629,13 +835,14 @@ int main() {
         std::cout << row.N << " | "
                   << std::fixed << std::setprecision(3)
                   << row.cpu_ms << " | "
-                  << row.gpu_ms << " | "
-                  << row.speedup << " | "
-                  << (row.correctness ? "PASS" : "FAIL") << "\n";
-        std::cout << "Max abs error: " << std::scientific << row.max_abs_error << "\n";
-        std::cout << "Mean abs error: " << std::scientific << row.mean_abs_error << "\n";
-        std::cout << "Correctness: " << (row.correctness ? "PASS" : "FAIL") << "\n";
-        std::cout << "Top-10 overlap: " << row.top10_overlap << "/10\n\n";
+                  << row.gpu_basic_ms << " | "
+                  << row.gpu_tiled_ms << " | "
+                  << row.speedup_tiled << " | "
+                  << (row.tiled_correctness ? "PASS" : "FAIL") << "\n";
+        std::cout << "Basic max abs error: " << std::scientific << row.basic_max_abs_error << "\n";
+        std::cout << "Tiled max abs error: " << std::scientific << row.tiled_max_abs_error << "\n";
+        std::cout << "Basic top-10 overlap: " << row.basic_top10_overlap << "/10\n";
+        std::cout << "Tiled top-10 overlap: " << row.tiled_top10_overlap << "/10\n\n";
     }
 
     write_benchmark_csv(rows);
