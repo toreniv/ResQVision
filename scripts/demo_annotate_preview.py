@@ -40,6 +40,12 @@ def parse_args() -> argparse.Namespace:
         help=f"Output JSON path (default: {DEFAULT_OUTPUT_JSON}).",
     )
     parser.add_argument("--class-name", default="person", help="Class display name (default: person).")
+    parser.add_argument(
+        "--label-mode",
+        choices=["none", "first", "all"],
+        default="none",
+        help="Preview label rendering mode: none, first, or all (default: none).",
+    )
     return parser.parse_args()
 
 
@@ -122,7 +128,7 @@ def draw_boxes(
     height: int,
     label: str,
     selected_index: int | None = None,
-    label_every: int = 1,
+    label_mode: str = "none",
 ) -> None:
     for index, box in enumerate(boxes):
         x1, y1, x2, y2 = ordered_box(box, width, height)
@@ -131,7 +137,8 @@ def draw_boxes(
         p1 = (int(round(x1)), int(round(y1)))
         p2 = (int(round(x2)), int(round(y2)))
         cv2.rectangle(image, p1, p2, color, thickness)
-        if index % label_every == 0:
+        should_label = label_mode == "all" or (label_mode == "first" and index == 0)
+        if should_label:
             draw_label(image, label, p1[0], p1[1])
 
 
@@ -148,12 +155,30 @@ def draw_instruction_overlay(image, box_count: int) -> None:
         y += 26
 
 
+def detections_to_boxes(json_path: pathlib.Path, image_path: pathlib.Path) -> list[Box]:
+    if not json_path.exists():
+        return []
+    try:
+        data = json.loads(json_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    saved_image = pathlib.Path(data.get("image_path", ""))
+    if saved_image.name and saved_image.name != image_path.name:
+        return []
+    boxes = []
+    for detection in data.get("detections", []):
+        xyxy = detection.get("xyxy")
+        if isinstance(xyxy, list) and len(xyxy) == 4:
+            boxes.append(tuple(float(value) for value in xyxy))
+    return boxes
+
+
 class DemoAnnotator:
-    def __init__(self, image) -> None:
+    def __init__(self, image, initial_boxes: list[Box] | None = None) -> None:
         self.image = image
         self.height, self.width = image.shape[:2]
         self.scale = display_scale(self.width, self.height)
-        self.boxes: list[Box] = []
+        self.boxes: list[Box] = initial_boxes[:] if initial_boxes else []
         self.history: list[int] = []
         self.selected_index: int | None = None
         self.drag_start: tuple[float, float] | None = None
@@ -214,7 +239,7 @@ class DemoAnnotator:
             display.shape[0],
             "human-reviewed person",
             self.selected_index,
-            label_every=max(1, len(self.boxes) // 8),
+            label_mode="first",
         )
         if self.drag_start is not None and self.drag_current is not None:
             x1, y1 = image_to_display(self.drag_start, self.scale)
@@ -231,11 +256,11 @@ def export_demo(
     output_image: pathlib.Path,
     output_json: pathlib.Path,
     class_name: str,
+    label_mode: str,
 ) -> None:
     height, width = image.shape[:2]
     rendered = image.copy()
-    label_every = max(1, len(boxes) // 8)
-    draw_boxes(rendered, boxes, width, height, f"human-reviewed {class_name}", label_every=label_every)
+    draw_boxes(rendered, boxes, width, height, f"human-reviewed {class_name}", label_mode=label_mode)
 
     detections = [
         box_to_detection(box, width, height, class_name)
@@ -258,8 +283,18 @@ def export_demo(
     output_json.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-def run_annotation(image, image_path: pathlib.Path, output_image: pathlib.Path, output_json: pathlib.Path, class_name: str) -> bool:
-    annotator = DemoAnnotator(image)
+def run_annotation(
+    image,
+    image_path: pathlib.Path,
+    output_image: pathlib.Path,
+    output_json: pathlib.Path,
+    class_name: str,
+    label_mode: str,
+) -> bool:
+    initial_boxes = detections_to_boxes(output_json, image_path)
+    annotator = DemoAnnotator(image, initial_boxes)
+    if initial_boxes:
+        print(f"[DEMO] Loaded {len(initial_boxes)} existing demo boxes from {output_json}")
     cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
     cv2.resizeWindow(WINDOW_NAME, int(annotator.width * annotator.scale), int(annotator.height * annotator.scale))
     cv2.setMouseCallback(WINDOW_NAME, annotator.mouse_callback)
@@ -273,7 +308,7 @@ def run_annotation(image, image_path: pathlib.Path, output_image: pathlib.Path, 
             cv2.destroyWindow(WINDOW_NAME)
             return False
         if key == ord("p"):
-            export_demo(image, annotator.boxes, image_path, output_image, output_json, class_name)
+            export_demo(image, annotator.boxes, image_path, output_image, output_json, class_name, label_mode)
             print(f"[DEMO] Boxes: {len(annotator.boxes)}")
             print(f"[OK] Exported preview -> {output_image}")
             print(f"[OK] Exported JSON -> {output_json}")
@@ -297,7 +332,7 @@ def main() -> int:
         raise RuntimeError(f"Could not read image: {args.image}")
 
     print(f"[DEMO] Loaded image: {args.image}")
-    exported = run_annotation(image, args.image, args.output_image, args.output_json, args.class_name)
+    exported = run_annotation(image, args.image, args.output_image, args.output_json, args.class_name, args.label_mode)
     if not exported:
         print("[DEMO] Quit without exporting.")
     return 0

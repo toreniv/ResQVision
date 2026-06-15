@@ -838,12 +838,13 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
 
   const isOfflineImage = detectionSource === 'offline_image';
   const sourceLabel = isOfflineImage ? 'Offline Image Mode' : hasLiveData ? 'Live JSON' : 'Mock data';
+  const showRawYoloDebug = new URLSearchParams(window.location.search).get('debug') === '1';
   const primaryPreviewSrc = humanReviewAvailable
     ? `/data/human_review_preview.jpg?t=${previewVersion}`
     : `/data/detection_preview.jpg?t=${previewVersion}`;
   const primaryDetectionCount = humanReviewAvailable
     ? humanReviewData?.detection_count ?? humanReviewData?.detections?.length ?? 0
-    : detections.length;
+    : 'Not available';
   const primarySource = humanReviewAvailable ? humanReviewData?.source ?? 'human_review_demo' : detectionSource ?? 'raw_yolo_output';
 
   // Load a single File object into the image viewer (shared by single & batch).
@@ -1544,6 +1545,7 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
         </section>
       </div>
 
+      {showRawYoloDebug ? (
       <details className="advanced-toggle" open={advancedOpen} onToggle={e => setAdvancedOpen(e.target.open)}>
         <summary>Raw YOLO Debug Output</summary>
         <div className="advanced-content">
@@ -1817,6 +1819,7 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
       </section>
         </div>
       </details>
+      ) : null}
     </section>
   );
 }
