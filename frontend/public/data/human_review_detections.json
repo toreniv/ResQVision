@@ -1,6 +1,6 @@
 {
   "source": "human_review_demo",
-  "timestamp": "2026-06-15T13:38:50.055246Z",
+  "timestamp": "2026-06-15T13:57:22.397855Z",
   "image_path": "dataset_approved_v2\\images\\frame_0065.jpg",
   "output_image_path": "frontend\\public\\data\\human_review_preview.jpg",
   "detection_count": 11,
