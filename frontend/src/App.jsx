@@ -694,6 +694,9 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
   const [hasLiveData, setHasLiveData] = useState(false);
   const [previewVersion, setPreviewVersion] = useState(Date.now());
   const [previewAvailable, setPreviewAvailable] = useState(true);
+  const [humanReviewData, setHumanReviewData] = useState(null);
+  const [humanReviewAvailable, setHumanReviewAvailable] = useState(false);
+  const [humanReviewWarning, setHumanReviewWarning] = useState(false);
   const [manualImageUrl, setManualImageUrl] = useState(null);
   const [manualImageName, setManualImageName] = useState(null);
   const [manualImageSize, setManualImageSize] = useState({ width: 0, height: 0 });
@@ -815,8 +818,33 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
     return () => clearInterval(interval);
   }, []); // empty deps – interval created once, liveLoaded via closure
 
+  useEffect(() => {
+    fetch('/data/human_review_detections.json?t=' + Date.now())
+      .then((r) => {
+        if (!r.ok) throw new Error('human-reviewed output missing');
+        return r.json();
+      })
+      .then((data) => {
+        setHumanReviewData(data);
+        setHumanReviewAvailable(true);
+        setHumanReviewWarning(false);
+      })
+      .catch(() => {
+        setHumanReviewData(null);
+        setHumanReviewAvailable(false);
+        setHumanReviewWarning(true);
+      });
+  }, []);
+
   const isOfflineImage = detectionSource === 'offline_image';
   const sourceLabel = isOfflineImage ? 'Offline Image Mode' : hasLiveData ? 'Live JSON' : 'Mock data';
+  const primaryPreviewSrc = humanReviewAvailable
+    ? `/data/human_review_preview.jpg?t=${previewVersion}`
+    : `/data/detection_preview.jpg?t=${previewVersion}`;
+  const primaryDetectionCount = humanReviewAvailable
+    ? humanReviewData?.detection_count ?? humanReviewData?.detections?.length ?? 0
+    : detections.length;
+  const primarySource = humanReviewAvailable ? humanReviewData?.source ?? 'human_review_demo' : detectionSource ?? 'raw_yolo_output';
 
   // Load a single File object into the image viewer (shared by single & batch).
   const loadFileIntoViewer = (file) => {
@@ -1352,6 +1380,51 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
         {hasLiveData && detectionSource === 'live_camera' && <span className="cv-live-badge">LIVE</span>}
       </div>
 
+      <section className="panel cv-human-review-card">
+        <div className="cv-human-review-header">
+          <div>
+            <h2>Human-Reviewed Tactical Annotation</h2>
+            <p>YOLO-assisted visual localization corrected by a human reviewer before operational visualization.</p>
+          </div>
+          <dl className="cv-human-review-summary">
+            <div><dt>Source</dt><dd>{primarySource}</dd></div>
+            <div><dt>Detection count</dt><dd>{primaryDetectionCount}</dd></div>
+            <div><dt>Status</dt><dd>{humanReviewAvailable ? 'Human Reviewed' : 'Fallback'}</dd></div>
+            <div><dt>Usage</dt><dd>Demo visualization</dd></div>
+          </dl>
+        </div>
+
+        {humanReviewWarning ? (
+          <div className="cv-human-review-warning">
+            Human-reviewed demo output not found. Showing raw detection output.
+          </div>
+        ) : null}
+
+        {previewAvailable || humanReviewAvailable ? (
+          <img
+            src={primaryPreviewSrc}
+            alt={humanReviewAvailable ? 'Human-reviewed tactical annotation preview' : 'Raw YOLO detection preview'}
+            className="cv-human-review-image"
+            onError={() => {
+              if (humanReviewAvailable) {
+                setHumanReviewAvailable(false);
+                setHumanReviewWarning(true);
+                setPreviewVersion(Date.now());
+              } else {
+                setPreviewAvailable(false);
+              }
+            }}
+          />
+        ) : (
+          <div className="cv-image-placeholder">
+            <div>
+              <p>No computer vision preview found</p>
+              <small>Generate <code>human_review_preview.jpg</code> or run YOLO to create <code>detection_preview.jpg</code>.</small>
+            </div>
+          </div>
+        )}
+      </section>
+
       <div className="cv-pipeline-layout">
         <section className="panel pipeline-panel">
           <div className="panel-title">
@@ -1472,12 +1545,12 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
       </div>
 
       <details className="advanced-toggle" open={advancedOpen} onToggle={e => setAdvancedOpen(e.target.open)}>
-        <summary>Advanced Manual Review & Debug</summary>
+        <summary>Raw YOLO Debug Output</summary>
         <div className="advanced-content">
       <div className="cv-layout">
         <section className="panel cv-detections-panel">
           <div className="panel-title">
-            <h3>Detections</h3>
+            <h3>Raw YOLO Debug Output</h3>
             <span>{detections.length} object{detections.length !== 1 ? 's' : ''}</span>
           </div>
           
