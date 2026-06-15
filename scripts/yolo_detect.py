@@ -150,6 +150,9 @@ def filter_by_geometry(
     frame_width: int,
     frame_height: int,
     min_rel_area: float = 0.00005,
+    max_rel_area: float = 0.08,
+    min_aspect: float = 0.25,
+    max_aspect: float = 3.0,
 ) -> list[dict[str, Any]]:
     kept = []
     for box in boxes:
@@ -161,21 +164,20 @@ def filter_by_geometry(
         frame_area = frame_width * frame_height
         relative_area = area / frame_area
 
-        # person from overhead: not too big, not too small
-        # relative area: 0.0003 to 0.015 of total frame
-        # aspect ratio: 0.4 to 3.0 (taller than wide or square)
+        reason = None
         if relative_area < min_rel_area:
+            reason = "min_rel_area"
+        elif relative_area > max_rel_area:
+            reason = "max_rel_area"
+        elif aspect < min_aspect:
+            reason = "min_aspect"
+        elif aspect > max_aspect:
+            reason = "max_aspect"
+
+        if reason is not None:
             print(f"[GEO_FILTER] DROPPED box={box['xyxy']} "
-                  f"rel_area={relative_area:.5f} aspect={aspect:.2f}")
-            continue  # too small - noise
-        if relative_area > 0.015:
-            print(f"[GEO_FILTER] DROPPED box={box['xyxy']} "
-                  f"rel_area={relative_area:.5f} aspect={aspect:.2f}")
-            continue  # too large - building/vehicle
-        if aspect < 0.3 or aspect > 4.5:
-            print(f"[GEO_FILTER] DROPPED box={box['xyxy']} "
-                  f"rel_area={relative_area:.5f} aspect={aspect:.2f}")
-            continue  # too wide - not a person silhouette
+                  f"reason={reason} rel_area={relative_area:.5f} aspect={aspect:.2f}")
+            continue
         kept.append(box)
     return kept
 
@@ -253,7 +255,9 @@ def global_nms(boxes: list[dict[str, Any]], iou_threshold: float = NMS_IOU_THRES
 
 def run_tiled_inference(
     image: Any, model: Any, frame_width: int, frame_height: int, 
-    min_rel_area: float = 0.00005, tile_size: int = 640, overlap_ratio: float = 0.35, 
+    min_rel_area: float = 0.00005, max_rel_area: float = 0.08,
+    min_aspect: float = 0.25, max_aspect: float = 3.0,
+    geo_filter_enabled: bool = True, tile_size: int = 640, overlap_ratio: float = 0.35,
     tile_imgsz: int = 960, verbose: bool = True
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     stride = int(tile_size * (1 - overlap_ratio))
@@ -293,9 +297,18 @@ def run_tiled_inference(
         return collected
 
     remapped_boxes = collect_tile_boxes(image)
-    filtered = filter_by_geometry(
-        remapped_boxes, frame_width, frame_height, min_rel_area
-    )
+    if geo_filter_enabled:
+        filtered = filter_by_geometry(
+            remapped_boxes,
+            frame_width,
+            frame_height,
+            min_rel_area,
+            max_rel_area,
+            min_aspect,
+            max_aspect,
+        )
+    else:
+        filtered = remapped_boxes
     after_geometry_filter = len(filtered)
     
     tiled_time_ms = (time.perf_counter() - tiled_start) * 1000
@@ -362,6 +375,11 @@ def run_yolo_detection(
     classes: list[int] | None = None,
     retry_if_empty: bool = True,
     min_rel_area: float = 0.00005,
+    max_rel_area: float = 0.08,
+    min_aspect: float = 0.25,
+    max_aspect: float = 3.0,
+    geo_filter_enabled: bool = True,
+    preset: str = "fast",
     tile_size: int = 640,
     overlap_ratio: float = 0.35,
     tile_imgsz: int = 960,
@@ -402,45 +420,97 @@ def run_yolo_detection(
     full_frame_start = time.perf_counter()
     result, params = run_inference_attempt(image_path, model_name_actual, imgsz, conf, classes, model=model)
     full_frame_raw = len(result.boxes)
-    person_boxes = extract_person_boxes(result)
-    after_class_filter_ff = len(person_boxes)
-    person_boxes = filter_by_geometry(person_boxes, frame_width, frame_height, min_rel_area)
+    full_frame_person_boxes = extract_person_boxes(result)
+    after_class_filter_ff = len(full_frame_person_boxes)
+    if geo_filter_enabled:
+        person_boxes = filter_by_geometry(
+            full_frame_person_boxes,
+            frame_width,
+            frame_height,
+            min_rel_area,
+            max_rel_area,
+            min_aspect,
+            max_aspect,
+        )
+    else:
+        person_boxes = full_frame_person_boxes
     after_geometry_filter_ff = len(person_boxes)
     attempts.append({**params, "detections": len(person_boxes)})
     
     # 2. CLAHE Pass if detections < 3
     clahe_raw = 0
+    after_class_filter_clahe = 0
     clahe_boxes = []
     if len(person_boxes) < 3:
         enhanced_image = enhance_with_clahe(image)
         c_result, clahe_params = run_image_inference_attempt(enhanced_image, model_name_actual, imgsz, conf, model=model)
         clahe_raw = len(c_result.boxes)
         c_boxes = extract_person_boxes(c_result)
-        clahe_boxes = filter_by_geometry(c_boxes, frame_width, frame_height, min_rel_area)
+        after_class_filter_clahe = len(c_boxes)
+        if geo_filter_enabled:
+            clahe_boxes = filter_by_geometry(
+                c_boxes,
+                frame_width,
+                frame_height,
+                min_rel_area,
+                max_rel_area,
+                min_aspect,
+                max_aspect,
+            )
+        else:
+            clahe_boxes = c_boxes
         attempts.append({**clahe_params, "detections": len(clahe_boxes), "preprocessing": "clahe"})
 
     # 3. High-res Retry if empty
     high_res_retry_raw = 0
+    after_class_filter_retry = 0
     retry_boxes = []
     retry_used = False
     if retry_if_empty and not person_boxes and not clahe_boxes:
         hr_result, hr_params = run_inference_attempt(image_path, model_name_actual, RETRY_DRONE_IMGSZ, RETRY_DRONE_CONF, classes, model=model)
         high_res_retry_raw = len(hr_result.boxes)
         r_boxes = extract_person_boxes(hr_result)
-        retry_boxes = filter_by_geometry(r_boxes, frame_width, frame_height, min_rel_area)
+        after_class_filter_retry = len(r_boxes)
+        if geo_filter_enabled:
+            retry_boxes = filter_by_geometry(
+                r_boxes,
+                frame_width,
+                frame_height,
+                min_rel_area,
+                max_rel_area,
+                min_aspect,
+                max_aspect,
+            )
+        else:
+            retry_boxes = r_boxes
         attempts.append({**hr_params, "detections": len(retry_boxes)})
         retry_used = True
 
     # 4. Tiled Inference Pass
     tiled_boxes, tiled_metadata = run_tiled_inference(
         image, model, frame_width, frame_height, 
-        min_rel_area=min_rel_area, tile_size=tile_size, overlap_ratio=overlap_ratio, 
+        min_rel_area=min_rel_area, max_rel_area=max_rel_area,
+        min_aspect=min_aspect, max_aspect=max_aspect,
+        geo_filter_enabled=geo_filter_enabled,
+        tile_size=tile_size, overlap_ratio=overlap_ratio,
         tile_imgsz=tile_imgsz, verbose=verbose
     )
 
     # Combine all
     all_boxes = person_boxes + clahe_boxes + retry_boxes + tiled_boxes
     before_nms_total = len(all_boxes)
+    raw_detections_before_geo_filter = (
+        after_class_filter_ff
+        + after_class_filter_clahe
+        + after_class_filter_retry
+        + tiled_metadata["after_class_filter_tiled"]
+    )
+    detections_after_geo_filter = (
+        after_geometry_filter_ff
+        + len(clahe_boxes)
+        + len(retry_boxes)
+        + tiled_metadata["after_geometry_filter_tiled"]
+    )
     
     # Global NMS
     final_boxes = global_nms(all_boxes, nms_iou)
@@ -449,9 +519,12 @@ def run_yolo_detection(
     metadata = {
         "mode": "drone_demo",
         "model": model_name_actual,
+        "model_path": model_name_actual,
+        "preset": preset,
         "imgsz": imgsz,
         "conf": conf,
         "classes": classes,
+        "geo_filter_enabled": geo_filter_enabled,
         "retry_used": retry_used,
         "attempts": attempts,
         "full_frame_attempt": True,
@@ -460,8 +533,10 @@ def run_yolo_detection(
         "clahe_raw": clahe_raw,
         "high_res_retry_raw": high_res_retry_raw,
         "tiled_raw_total": tiled_metadata["tiled_raw_total"],
-        "after_class_filter": after_class_filter_ff + tiled_metadata["after_class_filter_tiled"],
-        "after_geometry_filter": after_geometry_filter_ff + tiled_metadata["after_geometry_filter_tiled"],
+        "after_class_filter": raw_detections_before_geo_filter,
+        "raw_detections_before_geo_filter": raw_detections_before_geo_filter,
+        "after_geometry_filter": detections_after_geo_filter,
+        "detections_after_geo_filter": detections_after_geo_filter,
         "before_nms_total": before_nms_total,
         "after_nms": final_detections,
         "final_detections": final_detections,
@@ -470,6 +545,9 @@ def run_yolo_detection(
         "tile_imgsz": tile_imgsz,
         "overlap_ratio": overlap_ratio,
         "min_rel_area": min_rel_area,
+        "max_rel_area": max_rel_area,
+        "min_aspect": min_aspect,
+        "max_aspect": max_aspect,
         **tiled_metadata,
     }
 
@@ -478,7 +556,7 @@ def run_yolo_detection(
     json_path = out_dir / "detections.json"
     with json_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
-        handle.write("\\n")
+        handle.write("\n")
 
     preview_path = out_dir / "detection_preview.jpg"
     draw_preview(image, final_boxes, preview_path)
@@ -512,7 +590,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--imgsz", type=int, default=DEFAULT_DRONE_IMGSZ, help=f"Inference image size (default: {DEFAULT_DRONE_IMGSZ})")
     parser.add_argument("--conf", type=float, default=DEFAULT_DRONE_CONF, help=f"Confidence threshold (default: {DEFAULT_DRONE_CONF})")
     parser.add_argument("--classes", default=None, help="Comma-separated YOLO class IDs, 'all', or empty. Kept for metadata only; person filtering is name-based.")
-    parser.add_argument("--min-rel-area", type=float, default=0.00005, help="Minimum relative area for geometric filter (default: 0.00005)")
+    parser.add_argument("--min-rel-area", type=float, default=None, help="Minimum relative area for geometric filter. Preset default: fast=0.00005, high_recall=0.00002")
+    parser.add_argument("--max-rel-area", type=float, default=None, help="Maximum relative area for geometric filter. Preset default: fast=0.07, high_recall=0.08")
+    parser.add_argument("--min-aspect", type=float, default=None, help="Minimum height/width aspect ratio for geometric filter. Preset default: 0.25")
+    parser.add_argument("--max-aspect", type=float, default=None, help="Maximum height/width aspect ratio for geometric filter. Preset default: 3.0")
+    parser.add_argument("--no-geo-filter", action="store_true", help="Disable geometric filtering after person-name filtering.")
     parser.add_argument("--tile-size", type=int, default=640, help="Tile size for tiled inference (default: 640)")
     parser.add_argument("--overlap-ratio", type=float, default=0.35, help="Overlap ratio for tiled inference (default: 0.35)")
     parser.add_argument("--tile-imgsz", type=int, default=960, help="Inference resolution per tile (default: 960)")
@@ -529,12 +611,28 @@ def main() -> int:
         args.tile_imgsz = 1280
         args.overlap_ratio = 0.35
         args.nms_iou = 0.65
+        if args.min_rel_area is None:
+            args.min_rel_area = 0.00002
+        if args.max_rel_area is None:
+            args.max_rel_area = 0.08
+        if args.min_aspect is None:
+            args.min_aspect = 0.25
+        if args.max_aspect is None:
+            args.max_aspect = 3.0
     else:
         # fast
         args.tile_size = 640
         args.tile_imgsz = 960
         args.overlap_ratio = 0.35
         args.nms_iou = 0.65
+        if args.min_rel_area is None:
+            args.min_rel_area = 0.00005
+        if args.max_rel_area is None:
+            args.max_rel_area = 0.07
+        if args.min_aspect is None:
+            args.min_aspect = 0.25
+        if args.max_aspect is None:
+            args.max_aspect = 3.0
 
     try:
         run_yolo_detection(
@@ -545,6 +643,11 @@ def main() -> int:
             classes=parse_classes(args.classes),
             retry_if_empty=not args.no_retry,
             min_rel_area=args.min_rel_area,
+            max_rel_area=args.max_rel_area,
+            min_aspect=args.min_aspect,
+            max_aspect=args.max_aspect,
+            geo_filter_enabled=not args.no_geo_filter,
+            preset=args.preset,
             tile_size=args.tile_size,
             overlap_ratio=args.overlap_ratio,
             tile_imgsz=args.tile_imgsz,
