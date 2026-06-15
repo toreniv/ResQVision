@@ -1,4 +1,4 @@
-# ResQVision
+﻿# ResQVision
 
 **GPU-Accelerated Battlefield Casualty Prioritization using CUDA Attention, Drone Vision, and ResQBand-Inspired Telemetry**
 
@@ -118,8 +118,8 @@ Expected result:
 - If `nvcc` is not found, ensure CUDA Toolkit is installed and the compiler's directory is in your system's PATH.
 - If the build fails with C++ compilation errors, verify that the **Visual Studio C++ Build Tools** are installed for your version of Visual Studio.
 - Always run these commands from an x64 environment (e.g., x64 Native Tools Command Prompt for VS).
-- If `.\scripts\run_cuda_local.ps1` fails at the “Creating project directory” step, try creating the `outputs` folder manually before running the script again.
-- If `.\scripts\run_cuda_local.ps1` fails at the “Running CUDA kernel” step and claims `resqvision` does not exist (even after successful compilation), delete the `outputs\resqvision\` folder manually and retry the script.
+- If `.\scripts\run_cuda_local.ps1` fails at the ג€Creating project directoryג€ step, try creating the `outputs` folder manually before running the script again.
+- If `.\scripts\run_cuda_local.ps1` fails at the ג€Running CUDA kernelג€ step and claims `resqvision` does not exist (even after successful compilation), delete the `outputs\resqvision\` folder manually and retry the script.
 - If the script terminates with a segmentation fault or access violation before producing CSV output, try running the script with administrator privileges.
 
 
@@ -531,14 +531,14 @@ venv\Scripts\activate
 python scripts/yolo_live.py
 ```
 
-Continuously writes `detections.json` and `detection_preview.jpg` from webcam frames. The dashboard polls for updates every second — no backend required.
+Continuously writes `detections.json` and `detection_preview.jpg` from webcam frames. The dashboard polls for updates every second ג€” no backend required.
 
 ---
 
 ### YOLO Tactical Fusion
 
 ```text
-Webcam → YOLO → detections.json → fuse_yolo_to_tactical.py → tactical_fusion.json → dashboard
+Webcam ג†’ YOLO ג†’ detections.json ג†’ fuse_yolo_to_tactical.py ג†’ tactical_fusion.json ג†’ dashboard
 ```
 
 The fusion layer maps YOLO person detections into the same 0-1000 tactical grid used by Tactical Command. When live detections are available, the dashboard prefers `tactical_fusion.json` for map markers and top evacuation targets. If detections are missing or empty, the fusion script writes a `NO_DATA` artifact and the dashboard falls back to `risk_ranking.json`.
@@ -585,13 +585,13 @@ After running the CUDA binary or YOLO script, generated JSON files live in:
 
 ```
 frontend/public/data/
-├── benchmark_results.json
-├── risk_ranking.json
-├── attention_stats.json
-└── detections.json
+ג”ג”€ג”€ benchmark_results.json
+ג”ג”€ג”€ risk_ranking.json
+ג”ג”€ג”€ attention_stats.json
+ג””ג”€ג”€ detections.json
 ```
 
-The dashboard loads these files on startup. If any file is missing or malformed, it falls back to built-in mock data automatically — so the demo always works.
+The dashboard loads these files on startup. If any file is missing or malformed, it falls back to built-in mock data automatically ג€” so the demo always works.
 
 ### Export from Colab
 
@@ -646,7 +646,7 @@ to create a realistic simulation of next-generation battlefield triage systems.
 Each simulated soldier generates:
 
 * Heart Rate (HR)
-* Blood Oxygen Saturation (SpO₂)
+* Blood Oxygen Saturation (SpOג‚‚)
 * Body Temperature
 * Respiration Rate
 * Motion Level
@@ -702,7 +702,7 @@ The system computes:
 * YOLO person detection results
 * Confidence scores per detection
 * Bounding box coordinates
-* Live refresh indicator (● LIVE) when webcam script is running
+* Live refresh indicator (ג— LIVE) when webcam script is running
 * Automatic fallback to mock data when no detection file is present
 
 ---
@@ -711,13 +711,13 @@ The system computes:
 
 ```
 CUDA Output
-↓
+ג†“
 CSV Files
-↓
+ג†“
 JSON Export (scripts/csv_to_json.py)
-↓
+ג†“
 frontend/public/data/
-↓
+ג†“
 React Dashboard
 ```
 
@@ -740,11 +740,11 @@ If JSON files are unavailable, the dashboard automatically falls back to mock da
 * `entropy`
 
 Visualization tiers on the tactical map:
-* Top 3 attention targets → 🔴 red halo
-* Next 3 attention targets → 🟠 orange halo
-* Remaining targets → 🔵 blue halo
+* Top 3 attention targets ג†’ נ”´ red halo
+* Next 3 attention targets ג†’ נ  orange halo
+* Remaining targets ג†’ נ”µ blue halo
 
-The visualization is derived directly from CUDA attention outputs — no manual annotation.
+The visualization is derived directly from CUDA attention outputs ג€” no manual annotation.
 
 ---
 
@@ -755,14 +755,14 @@ The dashboard features a Recommended Action Engine that derives actions from:
 * Casualty category
 * Physiological status
 
-The engine is implemented as a **pure function** (`deriveRecommendedActions`) — no backend, no ML model, deterministic and testable.
+The engine is implemented as a **pure function** (`deriveRecommendedActions`) ג€” no backend, no ML model, deterministic and testable.
 
 Example output:
 ```
-1 · Evacuate Soldier 388       Risk 98.2 · HR 180 bpm · SpO₂ 74%
-2 · Dispatch Trauma Team Bravo  3 critical casualties in sector
-3 · Route UAV-1 to Cluster     Top 3 targets in operational range
-4 · Monitor Soldier 282        HR 168 bpm · trend watch
+1 ֲ· Evacuate Soldier 388       Risk 98.2 ֲ· HR 180 bpm ֲ· SpOג‚‚ 74%
+2 ֲ· Dispatch Trauma Team Bravo  3 critical casualties in sector
+3 ֲ· Route UAV-1 to Cluster     Top 3 targets in operational range
+4 ֲ· Monitor Soldier 282        HR 168 bpm ֲ· trend watch
 ```
 
 **Note:** This is a rule-based prototype and not a clinical decision system.
@@ -773,27 +773,27 @@ Example output:
 
 ```text
 Drone Observation Layer
-            │
-            ▼
+            ג”‚
+            ג–¼
 Soldier Detection / Tracking (YOLO)
-            │
-            ▼
+            ג”‚
+            ג–¼
 ResQBand Telemetry Stream
-            │
-            ▼
+            ג”‚
+            ג–¼
 Feature Matrix Generation
-            │
-            ▼
+            ג”‚
+            ג–¼
 CUDA Attention Engine
-            │
-            ▼
+            ג”‚
+            ג–¼
 Risk Assessment
-            │
-            ▼
+            ג”‚
+            ג–¼
 Evacuation Priority Ranking
-            │
-            ▼
-Recommended Actions → Tactical Dashboard
+            ג”‚
+            ג–¼
+Recommended Actions ג†’ Tactical Dashboard
 ```
 
 ---
@@ -802,10 +802,10 @@ Recommended Actions → Tactical Dashboard
 
 Current CUDA kernels:
 
-1. QKᵀ Matrix Multiplication
-2. Attention Scaling (1/√d)
+1. QKבµ€ Matrix Multiplication
+2. Attention Scaling (1/גˆd)
 3. Row-wise Softmax (numerically stable)
-4. Attention × V Computation
+4. Attention ֳ— V Computation
 
 The implementation demonstrates:
 
@@ -831,15 +831,15 @@ Future versions will introduce:
 The core CUDA computation implements the Scaled Dot-Product Attention mechanism:
 
 ```text
-Attention(Q, K, V) = softmax((Q × Kᵀ) / sqrt(d)) × V
+Attention(Q, K, V) = softmax((Q ֳ— Kבµ€) / sqrt(d)) ֳ— V
 ```
 
 The computation is divided into four CUDA kernels:
 
-1. QKᵀ Matrix Multiplication
+1. QKבµ€ Matrix Multiplication
 2. Attention Scaling
 3. Row-wise Softmax
-4. Attention × V Multiplication
+4. Attention ֳ— V Multiplication
 
 For the matrix multiplication stage, each CUDA thread computes exactly one output element:
 
@@ -876,7 +876,7 @@ because the attention score matrix is naturally two-dimensional.
 A typical configuration is:
 
 ```text
-16 × 16 Threads per Block
+16 ֳ— 16 Threads per Block
 = 256 Threads
 ```
 
@@ -901,10 +901,10 @@ This choice was made to:
 
 Separate kernels were intentionally used for:
 
-- QKᵀ
+- QKבµ€
 - Scaling
 - Softmax
-- Attention × V
+- Attention ֳ— V
 
 This follows the project requirements and makes each stage independently testable.
 
@@ -922,7 +922,7 @@ Validation includes:
 The project demonstrates approximately:
 
 ```text
-49× GPU Speedup
+49ֳ— GPU Speedup
 ```
 
 for the main benchmark configuration.
@@ -958,23 +958,23 @@ These optimizations can further improve performance while preserving correctness
 
 Current implementation focuses on correctness and baseline CUDA execution.
 
-### Phase 1 – Baseline CUDA
+### Phase 1 ג€“ Baseline CUDA
 * Global memory implementation
 * Separate kernels
 * Functional correctness validation
 
-### Phase 2 – Shared Memory Optimization
+### Phase 2 ג€“ Shared Memory Optimization
 * Tiled matrix multiplication
 * Reduced global memory access
 * Improved cache utilization
 
-### Phase 3 – Advanced Optimizations
+### Phase 3 ג€“ Advanced Optimizations
 * Kernel fusion
 * Memory coalescing improvements
 * Occupancy tuning
 * Larger battlefield simulations
 
-### Phase 4 – Real-Time Processing
+### Phase 4 ג€“ Real-Time Processing
 * Continuous telemetry streams
 * Live drone observations
 * Interactive battlefield command dashboard
@@ -1000,7 +1000,7 @@ Metrics:
 
 ## Current Demonstrated Results
 
-* **49× GPU acceleration** (512 soldiers benchmark)
+* **49ֳ— GPU acceleration** (512 soldiers benchmark)
 * Successful CPU/GPU correctness validation
 * Top-10 overlap validation
 * Attention-based casualty prioritization
@@ -1033,37 +1033,37 @@ Success criteria include:
 
 ```text
 ResQVision/
-│
-├── resqvision.cu
-├── ResQVision_Colab_Workflow.ipynb
-├── setup.ps1
-├── requirements.txt
-├── README.md
-│
-├── scripts/
-│   ├── yolo_detect.py
-│   ├── yolo_live.py
-│   ├── fuse_yolo_to_tactical.py
-│   └── csv_to_json.py
-│
-├── outputs/
-│   ├── benchmark_results.csv
-│   ├── risk_ranking.csv
-│   ├── attention_stats.csv
-│   └── attention_heatmap.csv
-│
-├── frontend/
-│   ├── public/data/
-│   │   ├── benchmark_results.json
-│   │   ├── risk_ranking.json
-│   │   ├── attention_stats.json
-│   │   ├── detections.json
-│   │   └── tactical_fusion.json
-│   └── src/
-│       ├── App.jsx
-│       └── styles.css
-│
-└── docs/
+ג”‚
+ג”ג”€ג”€ resqvision.cu
+ג”ג”€ג”€ ResQVision_Colab_Workflow.ipynb
+ג”ג”€ג”€ setup.ps1
+ג”ג”€ג”€ requirements.txt
+ג”ג”€ג”€ README.md
+ג”‚
+ג”ג”€ג”€ scripts/
+ג”‚   ג”ג”€ג”€ yolo_detect.py
+ג”‚   ג”ג”€ג”€ yolo_live.py
+ג”‚   ג”ג”€ג”€ fuse_yolo_to_tactical.py
+ג”‚   ג””ג”€ג”€ csv_to_json.py
+ג”‚
+ג”ג”€ג”€ outputs/
+ג”‚   ג”ג”€ג”€ benchmark_results.csv
+ג”‚   ג”ג”€ג”€ risk_ranking.csv
+ג”‚   ג”ג”€ג”€ attention_stats.csv
+ג”‚   ג””ג”€ג”€ attention_heatmap.csv
+ג”‚
+ג”ג”€ג”€ frontend/
+ג”‚   ג”ג”€ג”€ public/data/
+ג”‚   ג”‚   ג”ג”€ג”€ benchmark_results.json
+ג”‚   ג”‚   ג”ג”€ג”€ risk_ranking.json
+ג”‚   ג”‚   ג”ג”€ג”€ attention_stats.json
+ג”‚   ג”‚   ג”ג”€ג”€ detections.json
+ג”‚   ג”‚   ג””ג”€ג”€ tactical_fusion.json
+ג”‚   ג””ג”€ג”€ src/
+ג”‚       ג”ג”€ג”€ App.jsx
+ג”‚       ג””ג”€ג”€ styles.css
+ג”‚
+ג””ג”€ג”€ docs/
 ```
 
 ---
@@ -1089,7 +1089,7 @@ Generated outputs:
 * `attention_stats.csv`
 * `attention_heatmap.csv`
 
-Export all artifacts as ZIP — run the last cell in `ResQVision_Colab_Workflow.ipynb`.
+Export all artifacts as ZIP ג€” run the last cell in `ResQVision_Colab_Workflow.ipynb`.
 
 ---
 
@@ -1164,11 +1164,12 @@ These outputs are used to evaluate both computational performance and battlefiel
 
 ---
 
-## YOLO Detection Preview
+## Human-Reviewed Detection Preview
 
-![YOLO detection preview](docs/images/yolo_detection_preview.jpg)
+![Human-reviewed detection preview](docs/images/After_detection.png)
 
 ---
+
 
 
 
