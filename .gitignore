@@ -206,3 +206,14 @@ aerial_detection_benchmark.csv
 *detection_preview*.png
 *overlay*.jpg
 *overlay*.png
+
+# Local reference folders
+fixed_submission_ref/
+
+# Extra local export folders
+temp_exports/
+benchmarks/
+
+# Submission/output ZIPs
+ResQVision_submission_source*.zip
+resqvision_cuda_outputs*.zip
