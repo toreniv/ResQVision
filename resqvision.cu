@@ -1,3 +1,45 @@
+/*
+Course Requirement Mapping
+--------------------------
+This file is the central academic deliverable of ResQVision. It implements and
+benchmarks the complete Scaled Dot-Product Attention core in CUDA C++:
+
+    Attention(Q, K, V) = softmax((Q * K^T) / sqrt(d)) * V
+
+The implementation maps the course requirements as follows:
+1. QK^T matrix multiplication:
+   - CPU reference: qk_transpose_cpu()
+   - CUDA basic: qk_transpose_kernel()
+   - CUDA tiled: qk_transpose_tiled_kernel()
+2. Scaling by 1 / sqrt(d):
+   - CPU path: qk_transpose_cpu() applies the scale after the dot product.
+   - CUDA path: scale_kernel()
+3. Row-wise softmax:
+   - CPU reference: softmax_rows_cpu()
+   - CUDA implementation: row_softmax_kernel()
+4. Attention x V:
+   - CPU reference: matmul_cpu(attention, V, ...)
+   - CUDA basic: attention_v_kernel()
+   - CUDA tiled: attention_v_tiled_kernel()
+5. Correctness validation:
+   - error_metrics() compares CPU output with CUDA basic and CUDA tiled output.
+   - top10_overlap() validates that casualty-priority ranking is preserved.
+6. Benchmark output:
+   - run_case() measures CPU core, CUDA basic, and CUDA tiled runtimes.
+   - write_benchmark_csv() exports the benchmark schema consumed by the report
+     and dashboard.
+
+Matrix layout note:
+The assignment may describe Q and K conceptually as d x N. This implementation
+stores Q, K, and V as N x d_model in row-major order, where each row represents
+one soldier/token embedding. Therefore QK^T is computed as:
+
+    dot(Q[row, :], K[col, :])
+
+This layout keeps each soldier's feature vector contiguous in memory and makes
+the row/column thread mapping explicit in the CUDA kernels.
+*/
+
 #include <cuda_runtime.h>
 #include <cfloat>
 #include <algorithm>
@@ -28,15 +70,12 @@
 /*
 CUDA Design Summary
 -------------------
-This file implements the course-required Scaled Dot-Product Attention pipeline:
-    Attention(Q, K, V) = softmax((Q * K^T) / sqrt(d)) * V
-
 Two CUDA implementations are kept intentionally:
 1. Basic CUDA path - one output element per thread, mostly global memory.
 2. Tiled CUDA path - shared-memory tiles for QK^T and Attention*V.
 
-Keeping both paths makes the benchmark match the project requirement of comparing:
-CPU naive implementation, basic CUDA implementation, and improved CUDA implementation.
+Keeping both paths makes the benchmark match the project requirement of comparing
+the CPU reference, a basic CUDA implementation, and an improved CUDA implementation.
 The presentation dashboard uses the tiled path as the main GPU result, while the CSV
 also stores the basic path for analysis.
 */
@@ -77,6 +116,12 @@ struct BenchmarkRow {
 static float clamp01(float value) {
     return std::max(0.0f, std::min(1.0f, value));
 }
+
+// ---------------------------------------------------------------------------
+// Synthetic telemetry generation
+// ---------------------------------------------------------------------------
+// These helpers generate deterministic ResQBand-style soldier telemetry and
+// project it into fixed-width feature vectors used by the attention benchmark.
 
 static std::vector<Soldier> generate_soldiers(int N) {
     std::mt19937 rng(1337 + N);
@@ -163,6 +208,12 @@ static std::vector<float> make_weight_matrix(int d_model, int seed_offset) {
     return W;
 }
 
+// ---------------------------------------------------------------------------
+// CPU reference implementation
+// ---------------------------------------------------------------------------
+// The CPU path provides the numerical reference used for correctness checks.
+// It mirrors the same attention stages used by the CUDA implementations.
+
 static void matmul_cpu(const std::vector<float>& A,
                        const std::vector<float>& B,
                        std::vector<float>& C,
@@ -217,6 +268,10 @@ static void softmax_rows_cpu(std::vector<float>& matrix, int rows, int cols) {
     }
 }
 
+// Full CPU application path: builds Q, K, and V from the feature matrix and then
+// runs the attention core. The benchmark uses attention_cpu_core() instead so
+// CPU, CUDA basic, and CUDA tiled are compared on the same precomputed Q/K/V
+// inputs and measure only the attention core.
 static void attention_cpu(const std::vector<float>& X,
                           const std::vector<float>& Wq,
                           const std::vector<float>& Wk,
@@ -262,6 +317,13 @@ static void attention_cpu_core(const std::vector<float>& Q,
     }
 }
 
+// ---------------------------------------------------------------------------
+// Basic CUDA kernels
+// ---------------------------------------------------------------------------
+// These kernels implement the attention core directly with global-memory reads.
+// They are intentionally kept as the baseline CUDA path for comparison against
+// the tiled shared-memory implementation.
+
 // Thread mapping: blockIdx.y/threadIdx.y select a row and blockIdx.x/threadIdx.x
 // select a column. Each valid thread computes one scores[row, col] element.
 // The boundary check protects edge blocks when N is not a multiple of block size.
@@ -281,6 +343,13 @@ __global__ void qk_transpose_kernel(const float* Q,
     }
 }
 
+
+// ---------------------------------------------------------------------------
+// Tiled CUDA kernels
+// ---------------------------------------------------------------------------
+// The tiled kernels optimize the two matrix multiplication stages by loading
+// TILE_WIDTH x TILE_WIDTH chunks into shared memory before accumulating dot
+// products. Scaling and Softmax remain separate kernels for clarity.
 
 // Improved QK^T kernel using shared-memory tiling.
 // Each block computes a TILE_WIDTH x TILE_WIDTH tile of the N x N score matrix.
@@ -454,6 +523,9 @@ enum class GpuAttentionMode {
     Tiled
 };
 
+// Runs the CUDA attention core in either basic or tiled mode. The measured CUDA
+// event interval covers QK^T, scaling, Softmax, and Attention*V, but not the host
+// generation of Q/K/V.
 static void attention_gpu(const std::vector<float>& Q,
                           const std::vector<float>& K,
                           const std::vector<float>& V,
@@ -529,6 +601,12 @@ static void attention_gpu(const std::vector<float>& Q,
     CUDA_CHECK(cudaFree(d_scores));
     CUDA_CHECK(cudaFree(d_output));
 }
+
+// ---------------------------------------------------------------------------
+// Casualty ranking and correctness validation
+// ---------------------------------------------------------------------------
+// These helpers translate attention outputs into simulated casualty risk scores
+// and verify that CUDA ranking behavior matches the CPU reference.
 
 static float compute_risk_score(const Soldier& s, const std::vector<float>& output, int row, int d_model) {
     float mean_abs = 0.0f;
@@ -613,6 +691,12 @@ static float median_ms(std::vector<float> times) {
     std::sort(times.begin(), times.end());
     return times[times.size() / 2];
 }
+
+// ---------------------------------------------------------------------------
+// Benchmarking and output export
+// ---------------------------------------------------------------------------
+// run_case() performs the fair CPU/basic/tiled comparison. CSV writers preserve
+// the schema used by the report, Colab notebook, and React dashboard.
 
 static BenchmarkRow run_case(int N, int d_model, bool keep_default_outputs,
                              std::vector<Soldier>* default_soldiers,

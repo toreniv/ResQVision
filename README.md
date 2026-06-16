@@ -6,6 +6,20 @@ ResQVision is a GPU course project that implements the complete Scaled Dot-Produ
 
 The central academic deliverable is `resqvision.cu`. CUDA Attention is the core contribution. The React dashboard, YOLO scripts, ResQBand-inspired telemetry, and human-reviewed visual annotation flow are demonstration/integration layers that make the CUDA output easier to explain and visualize.
 
+## Academic Evaluation Snapshot
+
+| Item | Implementation |
+|---|---|
+| Central deliverable | `resqvision.cu` |
+| Core algorithm | Scaled Dot-Product Attention |
+| CPU reference | `attention_cpu_core` |
+| Basic CUDA path | `qk_transpose_kernel`, `scale_kernel`, `row_softmax_kernel`, `attention_v_kernel` |
+| Tiled CUDA path | `qk_transpose_tiled_kernel`, `attention_v_tiled_kernel` |
+| Tile size | `TILE_WIDTH = 16` |
+| Validation | Max/mean absolute error and Top-10 ranking overlap |
+| Benchmark output | `benchmark_results.csv` |
+| Detailed CUDA notes | `docs/CUDA_ATTENTION_DESIGN.md` |
+
 Detailed CUDA design notes are available in [`docs/CUDA_ATTENTION_DESIGN.md`](docs/CUDA_ATTENTION_DESIGN.md).
 
 ---
@@ -82,6 +96,14 @@ This directly addresses thread mapping, shared memory, global memory latency, an
 
 ## Benchmark Output
 
+The benchmark measures the attention core only:
+
+```text
+QK^T -> scaling -> row-wise softmax -> Attention * V
+```
+
+`Q`, `K`, and `V` are precomputed once before timing so the CPU reference, CUDA basic path, and CUDA tiled path execute the same computational scope.
+
 The CUDA program generates:
 
 ```text
@@ -118,9 +140,16 @@ tiled_top10_overlap
 
 For frontend compatibility, `GPU_time_ms`, `speedup`, `correctness`, `max_abs_error`, and `mean_abs_error` point to the tiled CUDA path.
 
-In the Colab Tesla T4 benchmark, the tiled CUDA implementation reached up to 213x speedup over the CPU reference for N=1024.
+### Measured Colab Tesla T4 Benchmark
 
-These benchmark numbers are measured results from a specific Colab Tesla T4 run, not universal guaranteed performance claims for every GPU or workload.
+| N soldiers | CPU core ms | GPU basic ms | GPU tiled ms | Tiled speedup | Correctness |
+|---:|---:|---:|---:|---:|---|
+| 128 | 2.674 | 0.088 | 0.041 | 64.819x | PASS |
+| 256 | 11.259 | 0.243 | 0.086 | 131.187x | PASS |
+| 512 | 46.049 | 0.836 | 0.248 | 185.682x | PASS |
+| 1024 | 183.423 | 3.200 | 0.861 | 213.061x | PASS |
+
+These values were measured on a Google Colab Tesla T4 runtime and should be interpreted as benchmark results from that environment, not as universal guaranteed performance on every GPU.
 
 Correctness validation:
 
@@ -181,7 +210,9 @@ Recommended Colab flow:
 
 ---
 
-## Frontend Dashboard
+## Optional Demo Layers: Dashboard, YOLO, and Human Review
+
+These layers support integration, visualization, and presentation. They are not the core CUDA requirement.
 
 After generating JSON files:
 
@@ -213,12 +244,6 @@ frontend/public/data/
 ```
 
 If generated JSON files are missing, the dashboard can fall back to existing demo data or mock data.
-
----
-
-## YOLO and Computer Vision Layer
-
-YOLO is not the core CUDA requirement. It is an application/demo layer.
 
 The intended story is:
 
@@ -292,6 +317,22 @@ One CUDA block owns one row of the attention score matrix. Threads scan the row 
 
 The implementation subtracts the row maximum before exponentiation for numerical stability.
 
+### Matrix Layout Note
+
+The mathematical formula is written as:
+
+```text
+Attention(Q, K, V) = softmax((Q * K^T) / sqrt(d)) * V
+```
+
+In the implementation, `Q`, `K`, and `V` are stored as row-major `N x d_model` arrays. Each row represents one soldier/token embedding. Therefore, each score is computed as:
+
+```text
+score[row, col] = dot(Q[row, :], K[col, :])
+```
+
+This produces the same `N x N` attention score matrix required by `Q * K^T`.
+
 ---
 
 ## Bottlenecks and Discussion Points
@@ -316,6 +357,14 @@ Future CUDA optimization directions:
 * Warp-level Softmax reductions
 * WMMA / Tensor Core matrix multiplication
 * Streaming telemetry batches
+
+---
+
+## Limitations
+
+This project is a GPU course prototype and simulation. It is not a medical device, not a clinical triage system, and not a real battlefield deployment.
+
+The casualty ranking logic is intended to demonstrate CUDA-accelerated attention and visualization of prioritization outputs. Real-world medical or operational use would require validated sensors, clinical supervision, robust communication, safety testing, and regulatory review.
 
 ---
 
