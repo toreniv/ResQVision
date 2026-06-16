@@ -49,14 +49,15 @@ TILE_WIDTH = 16
 
 ### 4. CPU vs CUDA Basic vs CUDA Tiled Benchmark
 
-Present the Colab Tesla T4 benchmark:
+Present the benchmark comparison:
 
-| N | CPU Reference | CUDA Basic | CUDA Tiled | Tiled Speedup vs CPU |
-|---:|---:|---:|---:|---:|
-| 128 | 2.674 ms | 0.088 ms | 0.041 ms | 64.819x |
-| 256 | 11.259 ms | 0.243 ms | 0.086 ms | 131.187x |
-| 512 | 46.049 ms | 0.836 ms | 0.248 ms | 185.682x |
-| 1024 | 183.423 ms | 3.200 ms | 0.861 ms | 213.061x |
+```text
+CPU reference
+CUDA basic
+CUDA tiled
+speedup_basic
+speedup_tiled
+```
 
 Say this carefully:
 
@@ -64,7 +65,7 @@ Say this carefully:
 In the Colab Tesla T4 benchmark, the tiled CUDA implementation reached up to 213x speedup over the CPU reference for N=1024.
 ```
 
-Do not present `213x` as a universal result.
+Do not present `213x` as a universal result. It is a measured result from a specific Colab Tesla T4 benchmark run.
 
 ### 5. Correctness Validation
 

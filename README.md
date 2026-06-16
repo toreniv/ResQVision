@@ -22,7 +22,7 @@ ResQVision includes:
 * Rule-based operational recommendations
 * YOLO computer vision integration
 
-The CUDA attention implementation is the core academic contribution. The React dashboard, YOLO integration, and human-reviewed visual annotation flow are demo and integration layers that make the CUDA results understandable in an operational scenario.
+The central academic deliverable is `resqvision.cu`. CUDA Attention is the core contribution. The React dashboard, YOLO integration, ResQBand-inspired telemetry, and human-reviewed visual annotation flow are demonstration/integration layers that make the CUDA results understandable in an operational scenario.
 
 Detailed CUDA design notes are available in [`docs/CUDA_ATTENTION_DESIGN.md`](docs/CUDA_ATTENTION_DESIGN.md).
 
@@ -1014,16 +1014,9 @@ Metrics:
 
 ### Colab Tesla T4 Benchmark
 
-The following measured results were validated in Google Colab on a Tesla T4:
-
-| N | CPU Reference | CUDA Basic | CUDA Tiled | Tiled Speedup vs CPU | Correctness |
-|---:|---:|---:|---:|---:|---|
-| 128 | 2.674 ms | 0.088 ms | 0.041 ms | 64.819x | PASS |
-| 256 | 11.259 ms | 0.243 ms | 0.086 ms | 131.187x | PASS |
-| 512 | 46.049 ms | 0.836 ms | 0.248 ms | 185.682x | PASS |
-| 1024 | 183.423 ms | 3.200 ms | 0.861 ms | 213.061x | PASS |
-
 In the Colab Tesla T4 benchmark, the tiled CUDA implementation reached up to 213x speedup over the CPU reference for N=1024.
+
+These benchmark numbers should be read as measured results from a specific Colab Tesla T4 run, not as universal guaranteed performance claims for every GPU or workload.
 
 Correctness validation:
 
