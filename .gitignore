@@ -1,32 +1,40 @@
 # =========================
+
 # Python
+
 # =========================
 
-__pycache__/
+**pycache**/
 *.pyc
 *.pyo
 *.pyd
 *.so
 
 # Virtual environments
+
 venv/
 .venv/
 env/
 ENV/
 
 # Python packaging
+
 build/
 dist/
 *.egg-info/
 
 # =========================
+
 # Jupyter / Colab
+
 # =========================
 
 .ipynb_checkpoints/
 
 # =========================
+
 # Node / React / Vite
+
 # =========================
 
 node_modules/
@@ -36,14 +44,18 @@ dist/
 frontend/dist/
 
 # =========================
-# VS Code
+
+# VS Code / Local IDE
+
 # =========================
 
 .vscode/
 *.code-workspace
 
 # =========================
+
 # Build outputs
+
 # =========================
 
 *.exe
@@ -52,7 +64,9 @@ frontend/dist/
 *.ilk
 
 # =========================
-# CUDA outputs
+
+# CUDA generated CSV outputs
+
 # =========================
 
 benchmark_results.csv
@@ -61,38 +75,45 @@ attention_stats.csv
 attention_heatmap.csv
 
 # =========================
-# YOLO / Ultralytics
+
+# Frontend generated detection artifacts
+
+# Keep core JSON benchmark/risk files trackable unless explicitly ignored.
+
 # =========================
 
-*.pt
-runs/
-datasets/
-
-# Generated detection artifacts
 frontend/public/data/detection_preview.jpg
 frontend/public/data/detections.json
 frontend/public/data/manual_markers.json
 frontend/public/data/tactical_fusion.json
-temp_uploads/
 
-# Optional:
-# אם אתה רוצה שהדשבורד יקבל נתונים אמיתיים מגיט - אל תתעלם מה-JSON
-# אם לא - בטל הערה מהשורות הבאות
+# If you do NOT want real CUDA JSON data in Git, uncomment these:
 
 # frontend/public/data/risk_ranking.json
+
 # frontend/public/data/attention_stats.json
+
 # frontend/public/data/benchmark_results.json
 
+# frontend/public/data/attention_heatmap.json
+
 # =========================
+
 # Windows
+
 # =========================
 
 Thumbs.db
 Desktop.ini
-docs/*.pptx
+
+# Final presentation files may be submitted under docs/, so do not ignore them.
+
+# docs/*.pptx
 
 # =========================
+
 # Logs
+
 # =========================
 
 *.log
@@ -101,7 +122,9 @@ yarn-debug.log*
 yarn-error.log*
 
 # =========================
+
 # Temporary files
+
 # =========================
 
 temp/
@@ -109,61 +132,52 @@ tmp/
 *.tmp
 
 # =========================
+
 # Training datasets / generated ML data
+
 # =========================
 
 dataset/
 dataset.zip
-frames/
-*.mp4
-
-# Dataset builder / exports
-temp_uploads/
-dataset_builder/
-dataset_export/
-
-# YOLO / Ultralytics
-*.pt
-runs/
-datasets/
-
-# =========================
-
-# ResQVision generated data / local artifacts
-
-# =========================
-
-# Raw and processed video frames
-
-frames/
-frames_deduped/
-
-# Draft assisted-labeling outputs
-
 dataset_draft/
 dataset_draft_old/
-review_candidates/
-
-# Approved / backup datasets that should not be committed by accident
-
 dataset_approved_v2/
 dataset_legacy_backup/
 dataset_backup/
 dataset_old/
-
-# Extracted / exported datasets
-
 dataset_extracted/
 dataset_export/
 dataset_exports/
 dataset_zip/
-*.zip
+dataset_builder/
+review_candidates/
 
-# Local output folders
+# Raw and processed frames
 
-outputs/
-output/
-reports/generated/
+frames/
+frames_deduped/
+
+# Local video/media datasets
+
+soldiers_drill/
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+
+# =========================
+
+# YOLO / Ultralytics / ML artifacts
+
+# =========================
+
+*.pt
+runs/
+runs_backup/
+datasets/
+wandb/
+mlruns/
 
 # Model weights and converted engines
 
@@ -173,47 +187,69 @@ models/*.engine
 models/*.bin
 models/*.weights
 
-# YOLO/Ultralytics training outputs
+# =========================
 
-runs/
-runs_backup/
-wandb/
-mlruns/
+# Local output folders
+
+# =========================
+
+outputs/
+output/
+reports/generated/
+
+# =========================
 
 # Local benchmark scratch outputs
+
+# Keep JSON benchmarks trackable when needed.
+
+# =========================
+
+benchmarks/*.csv
+benchmarks/*.md
+!benchmarks/*.json
 
 sweep_results.md
 benchmark_presets.md
 benchmark_manual.md
 aerial_detection_benchmark.csv
 
-# Antigravity / Gemini scratch workspace
-
-.gemini/
-.antigravity/
-
-# Large media files
-
-*.mp4
-*.mov
-*.avi
-*.mkv
-*.webm
+# =========================
 
 # Generated preview images
+
+# =========================
 
 *detection_preview*.jpg
 *detection_preview*.png
 *overlay*.jpg
 *overlay*.png
 
-# Local reference folders
+# =========================
+
+# Local reference / export folders
+
+# =========================
+
 fixed_submission_ref/
-
-# Extra local export folders
 temp_exports/
-benchmarks/
+temp_uploads/
 
-# Submission/output ZIPs
+# =========================
+
+# Submission / output ZIPs
+
+# =========================
+
+*.zip
 ResQVision_submission_source*.zip
 resqvision_cuda_outputs*.zip
+
+# =========================
+
+# Antigravity / Gemini scratch workspace
+
+# =========================
+
+.gemini/
+.antigravity/
