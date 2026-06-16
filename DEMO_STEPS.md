@@ -1,35 +1,64 @@
 # ResQVision Demo Steps
 
-## Presentation Order
+## Main Presentation Flow
 
-### 1. CUDA Problem and Attention Formula
+Start from the CUDA requirement. The dashboard and YOLO layer come after the GPU implementation has been explained.
 
-Start with the core computational problem:
+### 1. Problem
+
+Open with the computational problem:
+
+```text
+Many simulated soldiers transmit telemetry at the same time.
+The system must rank casualty priority quickly enough for an operational dashboard.
+```
+
+Explain that `N` is the number of simulated soldiers and `d = 64` is the attention feature dimension. The project uses attention because each soldier's risk can be evaluated in context with the rest of the battlefield state.
+
+### 2. Attention Formula
+
+Show the Scaled Dot-Product Attention formula:
 
 ```text
 Attention(Q, K, V) = softmax((Q * K^T) / sqrt(d)) * V
 ```
 
-Explain that `N` is the number of simulated soldiers and `d = 64` is the attention feature dimension. The goal is to rank casualties by processing battlefield telemetry in parallel.
+Connect the math to the project:
 
-### 2. CUDA Kernels
+* `Q`, `K`, and `V` are generated from simulated ResQBand-style battlefield telemetry.
+* The attention output feeds casualty prioritization.
+* The CPU version is the correctness reference.
+* The CUDA versions are the parallel implementations being evaluated.
 
-Show that the CUDA implementation decomposes attention into kernels:
+### 3. CUDA Kernels
+
+Open `resqvision.cu` and show that the attention pipeline is decomposed into kernels:
 
 1. `Q * K^T`
 2. Scaling by `1 / sqrt(d)`
-3. Row-wise Softmax
+3. Row-wise numerically stable Softmax
 4. `Attention * V`
 
-Then explain that the project compares:
+Then show that the project compares three paths:
 
 1. CPU reference
 2. CUDA basic
 3. CUDA tiled
 
-The tiled CUDA path uses shared memory for both `Q * K^T` and `Attention * V`.
+Important kernel names to point at:
 
-### 3. Thread and Block Mapping
+```text
+qk_transpose_kernel
+qk_transpose_tiled_kernel
+scale_kernel
+row_softmax_kernel
+attention_v_kernel
+attention_v_tiled_kernel
+```
+
+The tiled CUDA path uses shared memory for both matrix multiplication stages: `Q * K^T` and `Attention * V`.
+
+### 4. Thread/Block Mapping
 
 Show the matrix thread mapping:
 
@@ -38,40 +67,56 @@ row = blockIdx.y * blockDim.y + threadIdx.y;
 col = blockIdx.x * blockDim.x + threadIdx.x;
 ```
 
-Each thread computes one output matrix element.
+Explain:
 
-The tiled implementation uses:
+* The grid is two-dimensional because the output matrices are two-dimensional.
+* Each valid CUDA thread computes one output matrix element.
+* Boundary checks prevent invalid memory access when dimensions do not divide evenly by the block size.
+
+For the tiled implementation, show:
 
 ```text
 TILE_WIDTH = 16
 16 x 16 threads per block
 ```
 
-### 4. CPU vs CUDA Basic vs CUDA Tiled Benchmark
+Each block cooperatively loads a tile into shared memory, synchronizes, reuses the tile data, and accumulates partial dot products.
 
-Present the benchmark comparison:
+### 5. Benchmark
 
-```text
-CPU reference
-CUDA basic
-CUDA tiled
-speedup_basic
-speedup_tiled
+Run or show:
+
+```powershell
+.\scripts\run_cuda_local.ps1
 ```
 
-Say this carefully:
+If local CUDA is unavailable, use the Colab output or `outputs/benchmark_results.csv`.
+
+Focus on these benchmark fields:
+
+```text
+CPU_time_ms
+GPU_basic_time_ms
+GPU_tiled_time_ms
+speedup_basic
+speedup_tiled
+basic_correctness
+tiled_correctness
+```
+
+Say the performance result carefully:
 
 ```text
 In the Colab Tesla T4 benchmark, the tiled CUDA implementation reached up to 213x speedup over the CPU reference for N=1024.
 ```
 
-Do not present `213x` as a universal result. It is a measured result from a specific Colab Tesla T4 benchmark run.
+Do not present `213x` as a universal result. It is a measured result from one Colab Tesla T4 benchmark run.
 
-### 5. Correctness Validation
+### 6. Correctness
 
-Explain that speed is not enough; the GPU result is validated against the CPU reference.
+Explain that speed is only valid if the GPU output agrees with the CPU reference.
 
-Validation results:
+Validation points:
 
 ```text
 Top-10 overlap: 10/10
@@ -79,29 +124,30 @@ Max absolute error: approximately 1e-6 to 2.5e-6
 Correctness: PASS
 ```
 
-The top-10 overlap matters because the dashboard depends on the ranking of highest-risk casualties.
+The top-10 overlap is important because the dashboard depends on the ranking of highest-risk casualties.
 
-### 6. Bottlenecks and Future Optimizations
+### 7. Bottlenecks
 
 Mention current bottlenecks:
 
-* Global memory access
+* Global memory access in matrix multiplication
 * Softmax row reductions
 * Separate kernel launch overhead
-* Host-device transfers
-* FP32 kernels not using Tensor Cores
+* Host-to-device and device-to-host transfers
+* Small `d_model = 64`, which limits how much work each matrix tile can reuse
+* Shared-memory synchronization overhead
 
-Future CUDA optimizations:
+Future CUDA optimization directions:
 
 * Kernel fusion
 * Flash-Attention-style memory-efficient attention
-* Warp-level Softmax
+* Warp-level Softmax reductions
 * WMMA / Tensor Core matrix multiplication
 * Streaming telemetry batches
 
-### 7. React Dashboard
+### 8. Dashboard
 
-Open the dashboard:
+Only after the CUDA explanation, open the React dashboard:
 
 ```powershell
 cd frontend
@@ -116,10 +162,10 @@ http://localhost:5173
 
 Show:
 
-* Mission Plan
-* Tactical Command
-* Analytics
-* System Architecture
+* Analytics for CPU vs CUDA benchmark visualization
+* Tactical Command for casualty ranking and attention-derived prioritization
+* System Architecture for the end-to-end data flow
+* Mission Plan for the operational wrapper around the CUDA output
 
 Explain that the dashboard visualizes CUDA-generated JSON outputs:
 
@@ -129,7 +175,7 @@ frontend/public/data/risk_ranking.json
 frontend/public/data/attention_stats.json
 ```
 
-### 8. YOLO / Human Review Visual Demo Layer
+### 9. YOLO / Human Review
 
 Move to Computer Vision last.
 
@@ -153,9 +199,7 @@ Raw YOLO debug output is hidden unless the URL contains:
 ?debug=1
 ```
 
-### 9. Final Project Message
-
-Use this closing message:
+Use this final framing:
 
 ```text
 Drone vision gives visual localization.
@@ -170,7 +214,7 @@ If local CUDA fails:
 
 * Use the Colab benchmark and exported JSON files.
 
-If frontend startup fails:
+If the frontend does not start:
 
 ```powershell
 cd frontend
@@ -182,3 +226,11 @@ If YOLO output is noisy:
 
 * Use the human-reviewed demo preview.
 * Keep raw YOLO only for debug mode.
+
+## What Not To Claim
+
+Do not claim that YOLO is the academic CUDA contribution.
+
+Do not claim that the measured 213x speedup is guaranteed on every machine.
+
+Do not claim the system is a clinical or operational medical decision system. It is a research and course demonstration of CUDA-accelerated attention applied to simulated battlefield triage.
