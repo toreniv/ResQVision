@@ -89,6 +89,7 @@ export async function loadRiskRanking() {
   if (fusion?.fusion_mode !== 'NO_DATA' && Array.isArray(fusion?.targets) && fusion.targets.length) {
     const targets = fusion.targets.map(normalizeRiskRow).filter(Boolean);
     targets.fusionMode = fusion.fusion_mode;
+    targets.metadata = fusion.metadata;
     return targets;
   }
 
@@ -96,6 +97,7 @@ export async function loadRiskRanking() {
   if (!raw) return null;
   const targets = raw.map(normalizeRiskRow).filter(Boolean);
   targets.fusionMode = fusion?.fusion_mode ?? null;
+  targets.metadata = fusion?.metadata ?? null;
   return targets;
 }
 

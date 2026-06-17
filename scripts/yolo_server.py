@@ -336,6 +336,8 @@ async def upload_and_save_dataset_sample(
         # bbox format from yolo_detect.py: [x1, y1, w, h]
         yolo_markers: list[dict[str, Any]] = []
         for det in yolo_detections:
+            if det.get("status", "confirmed") != "confirmed":
+                continue
             bbox = det.get("bbox")  # [x1, y1, w, h]
             if not bbox or len(bbox) < 4:
                 continue

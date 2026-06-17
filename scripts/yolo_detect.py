@@ -29,6 +29,8 @@ DEFAULT_IMAGE = "scripts/sample_input.jpg"
 DEFAULT_DATA_DIR = pathlib.Path("frontend/public/data")
 DEFAULT_DRONE_IMGSZ = 1280
 DEFAULT_DRONE_CONF = 0.40
+CONFIRMED_MIN_CONF = 0.30
+CANDIDATE_MIN_CONF = 0.08
 RETRY_DRONE_IMGSZ = 1920
 RETRY_DRONE_CONF = 0.10
 PERSON_CLASS_NAMES = {"person", "pedestrian", "people", "soldier"}
@@ -93,41 +95,172 @@ def parse_classes(value: str | None) -> list[int] | None:
     return [int(part.strip()) for part in value.split(",") if part.strip()]
 
 
-def build_detection_payload(
-    image_path: pathlib.Path,
-    boxes: list[dict[str, Any]],
-    frame_width: int,
-    frame_height: int,
-    metadata: dict[str, Any],
-) -> dict[str, Any]:
-    detections = []
+def apply_confidence_and_shadow_policy(
+    image, boxes, frame_width, frame_height, metadata
+):
+    processed = []
     detection_id = 1
+    
+    import time
+
+    def compute_iou(box1, box2):
+        x1 = max(box1[0], box2[0])
+        y1 = max(box1[1], box2[1])
+        x2 = min(box1[2], box2[2])
+        y2 = min(box1[3], box2[3])
+        interArea = max(0, x2 - x1) * max(0, y2 - y1)
+        if interArea == 0: return 0.0
+        box1Area = (box1[2] - box1[0]) * (box1[3] - box1[1])
+        box2Area = (box2[2] - box2[0]) * (box2[3] - box2[1])
+        return interArea / float(max(box1Area + box2Area - interArea, 1))
 
     for box in boxes:
-        confidence = round(float(box["confidence"]), 2)
+        conf = float(box["confidence"])
         x1, y1, x2, y2 = [int(round(v)) for v in box["xyxy"]]
+        
+        x1 = max(0, min(x1, frame_width))
+        x2 = max(0, min(x2, frame_width))
+        y1 = max(0, min(y1, frame_height))
+        y2 = max(0, min(y2, frame_height))
+        
         w = x2 - x1
         h = y2 - y1
-        center = [x1 + w // 2, y1 + h // 2]
-
-        detections.append({
-            "id": detection_id,
+        
+        det = {
+            "id": f"det_{detection_id:03d}",
+            "class_name": "person",
             "class": "person",
-            "confidence": confidence,
+            "confidence": round(conf, 2),
+            "bbox_xyxy": [x1, y1, x2, y2],
+            "bbox_xywh": [x1, y1, w, h],
             "bbox": [x1, y1, w, h],
-            "center": center,
-        })
+            "center": [x1 + w // 2, y1 + h // 2],
+            "source": "YOLO",
+            "model": metadata.get("model", "unknown"),
+            "stage": metadata.get("final_detection_stage", "hybrid"),
+        }
         detection_id += 1
+
+        if w <= 0 or h <= 0:
+            det["status"] = "rejected_shadow_candidate"
+            det["reason"] = "invalid_box_geometry"
+            det["review_required"] = False
+            processed.append(det)
+            continue
+            
+        area = w * h
+        rel_area = area / float(max(frame_width * frame_height, 1))
+        aspect = w / float(h)
+        
+        min_aspect = metadata.get("min_aspect", 0.25)
+        max_aspect = metadata.get("max_aspect", 3.0)
+        min_rel_area = metadata.get("min_rel_area", 0.00005)
+        max_rel_area = metadata.get("max_rel_area", 0.08)
+
+        det["aspect_width_over_height"] = round(aspect, 3)
+        det["relative_area"] = round(rel_area, 6)
+
+        if conf < CANDIDATE_MIN_CONF:
+            det["status"] = "rejected_low_confidence"
+            det["reason"] = "low_confidence"
+            det["review_required"] = False
+        elif aspect < min_aspect or aspect > max_aspect:
+            det["status"] = "rejected_shadow_candidate"
+            det["reason"] = "extreme_aspect_ratio"
+            det["review_required"] = False
+        elif rel_area < min_rel_area or rel_area > max_rel_area:
+            det["status"] = "rejected_shadow_candidate"
+            det["reason"] = "abnormal_relative_area"
+            det["review_required"] = False
+        elif conf < CONFIRMED_MIN_CONF:
+            if 0.4 <= aspect <= 3.0:
+                det["status"] = "candidate"
+                det["candidate_strength"] = "strong" if 0.6 <= aspect <= 2.0 else "weak"
+                det["reason"] = "low_conf_valid_top_down_geometry"
+                det["review_required"] = True
+            else:
+                det["status"] = "rejected_shadow_candidate"
+                det["reason"] = "extreme_aspect_ratio"
+                det["review_required"] = False
+        else:
+            det["status"] = "confirmed"
+            det["reason"] = ""
+            det["review_required"] = False
+
+        processed.append(det)
+
+    confirmed_boxes = [d for d in processed if d["status"] == "confirmed"]
+    for det in processed:
+        if det["status"] == "candidate":
+            for c_det in confirmed_boxes:
+                iou = compute_iou(det["bbox_xyxy"], c_det["bbox_xyxy"])
+                if iou > 0.15:
+                    det["status"] = "rejected_shadow_candidate"
+                    det["reason"] = "adjacent_shadow_noise"
+                    det["review_required"] = False
+                    break
+
+    import cv2
+    import pathlib
+    if image is not None:
+        negatives_dir = pathlib.Path("data/negatives_for_training")
+        for det in processed:
+            if det["status"] == "rejected_shadow_candidate":
+                negatives_dir.mkdir(parents=True, exist_ok=True)
+                ts = int(time.time())
+                import uuid
+                uid = uuid.uuid4().hex[:6]
+                fname = negatives_dir / f"shadow_{ts}_{uid}.jpg"
+                x1, y1, x2, y2 = det["bbox_xyxy"]
+                if x2 > x1 and y2 > y1:
+                    try:
+                        crop = image[y1:y2, x1:x2]
+                        if crop.size > 0:
+                            cv2.imwrite(str(fname), crop)
+                            print(f"[GEO_FILTER] Saved hard negative -> {fname}")
+                    except Exception as e:
+                        pass
+
+    counts = {
+        "confirmed_count": sum(1 for d in processed if d["status"] == "confirmed"),
+        "candidate_count": sum(1 for d in processed if d["status"] == "candidate"),
+        "rejected_count": sum(1 for d in processed if d["status"].startswith("rejected_")),
+    }
+    
+    return processed, counts
+
+def build_detection_payload(
+    image,
+    image_path,
+    boxes,
+    frame_width,
+    frame_height,
+    metadata,
+):
+    from datetime import datetime, timezone
+    processed_detections, counts = apply_confidence_and_shadow_policy(
+        image, boxes, frame_width, frame_height, metadata
+    )
+    
+    top_level_metadata = {
+        **metadata,
+        "confirmed_count": counts["confirmed_count"],
+        "candidate_count": counts["candidate_count"],
+        "rejected_count": counts["rejected_count"],
+        "review_required": counts["candidate_count"] > 0 and counts["confirmed_count"] == 0,
+        "confirmed_min_conf": CONFIRMED_MIN_CONF,
+        "candidate_min_conf": CANDIDATE_MIN_CONF,
+        "confidence_policy": "confirmed_only_for_tactical_fusion",
+    }
 
     return {
         "source": "offline_image",
         "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "frame_width": frame_width,
         "frame_height": frame_height,
-        "metadata": metadata,
-        "detections": detections,
+        "metadata": top_level_metadata,
+        "detections": processed_detections,
     }
-
 
 def extract_person_boxes(result: Any) -> list[dict[str, Any]]:
     boxes: list[dict[str, Any]] = []
@@ -146,41 +279,16 @@ def extract_person_boxes(result: Any) -> list[dict[str, Any]]:
 
 
 def filter_by_geometry(
-    boxes: list[dict[str, Any]],
-    frame_width: int,
-    frame_height: int,
-    min_rel_area: float = 0.00005,
-    max_rel_area: float = 0.08,
-    min_aspect: float = 0.25,
-    max_aspect: float = 3.0,
-) -> list[dict[str, Any]]:
-    kept = []
-    for box in boxes:
-        x1, y1, x2, y2 = box["xyxy"]
-        w = x2 - x1
-        h = y2 - y1
-        area = w * h
-        aspect = h / w if w > 0 else 0
-        frame_area = frame_width * frame_height
-        relative_area = area / frame_area
-
-        reason = None
-        if relative_area < min_rel_area:
-            reason = "min_rel_area"
-        elif relative_area > max_rel_area:
-            reason = "max_rel_area"
-        elif aspect < min_aspect:
-            reason = "min_aspect"
-        elif aspect > max_aspect:
-            reason = "max_aspect"
-
-        if reason is not None:
-            print(f"[GEO_FILTER] DROPPED box={box['xyxy']} "
-                  f"reason={reason} rel_area={relative_area:.5f} aspect={aspect:.2f}")
-            continue
-        kept.append(box)
-    return kept
-
+    boxes,
+    frame_width,
+    frame_height,
+    min_rel_area=0.00005,
+    max_rel_area=0.08,
+    min_aspect=0.25,
+    max_aspect=3.0,
+):
+    print(f"[GEO_FILTER] Passthrough: {len(boxes)} boxes passed to policy")
+    return boxes
 
 def enhance_with_clahe(img_bgr: np.ndarray) -> np.ndarray:
     lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB)
@@ -322,15 +430,31 @@ def run_tiled_inference(
         "tiled_time_ms": round(tiled_time_ms, 2)
     }
 
-def draw_preview(image: Any, boxes: list[dict[str, Any]], output_path: pathlib.Path) -> None:
+def draw_preview(image, boxes, output_path) -> None:
     annotated = image.copy()
+    
+    import cv2
+    cv2.putText(annotated, "[PREVIEW] confidence_policy_v2_active", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+    
     for box in boxes:
-        x1, y1, x2, y2 = [int(round(v)) for v in box["xyxy"]]
+        status = box.get("status", "confirmed")
+        if status.startswith("rejected_"):
+            continue
+
+        x1, y1, x2, y2 = [int(round(v)) for v in box.get("bbox_xyxy", box.get("xyxy", [0,0,0,0]))]
         confidence = float(box["confidence"])
-        cv2.rectangle(annotated, (x1, y1), (x2, y2), (22, 163, 74), 2)
-        label = f"person {confidence:.2f}"
+        
+        if status == "candidate":
+            color = (0, 215, 255)
+            label = f"candidate person {confidence:.2f}"
+        else:
+            color = (22, 163, 74)
+            label = f"person {confidence:.2f}"
+            
+        cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
         label_y = max(16, y1 - 6)
-        cv2.putText(annotated, label, (x1, label_y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (22, 163, 74), 2)
+        cv2.putText(annotated, label, (x1, label_y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
+        
     cv2.imwrite(str(output_path), annotated)
 
 def run_inference_attempt(
@@ -551,11 +675,22 @@ def run_yolo_detection(
         **tiled_metadata,
     }
 
-    payload = build_detection_payload(image_path, final_boxes, frame_width, frame_height, metadata)
+    payload = build_detection_payload(image, image_path, final_boxes, frame_width, frame_height, metadata)
 
     json_path = out_dir / "detections.json"
     with json_path.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2)
+        
+    print("[YOLO_SCHEMA] detections.json policy schema active")
+    m = payload.get("metadata", {})
+    print(f"[YOLO_SCHEMA] confirmed={m.get('confirmed_count')} candidate={m.get('candidate_count')} rejected={m.get('rejected_count')} review_required={m.get('review_required')}")
+
+    # Defensive check
+    for d in payload.get("detections", []):
+        if "status" not in d:
+            print("[ERROR] Detection payload missing status fields")
+            break
+
         handle.write("\n")
 
     preview_path = out_dir / "detection_preview.jpg"

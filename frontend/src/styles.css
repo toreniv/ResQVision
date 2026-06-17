@@ -1077,6 +1077,23 @@ main {
   font-size: 11px;
 }
 
+.tc-refresh-button {
+  align-self: flex-start;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 7px 10px;
+  color: #1e40af;
+  background: #eff6ff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.tc-refresh-button:hover {
+  border-color: #93c5fd;
+  background: #dbeafe;
+}
+
 .tc-target-list {
   display: flex;
   flex: 1;
@@ -2354,6 +2371,51 @@ th {
   opacity: 0.58;
 }
 
+.cv-run-state {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 2px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  color: #1e3a8a;
+  background: #eff6ff;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.cv-run-state span {
+  color: #475569;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.cv-run-state.is-running {
+  border-color: #fde68a;
+  color: #92400e;
+  background: #fffbeb;
+}
+
+.cv-run-state.is-success {
+  border-color: #bbf7d0;
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.cv-run-state.is-zero {
+  border-color: #fed7aa;
+  color: #9a3412;
+  background: #fff7ed;
+}
+
+.cv-run-state.is-error {
+  border-color: #fecaca;
+  color: #991b1b;
+  background: #fef2f2;
+}
+
 .camera-controls button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -2367,6 +2429,57 @@ th {
   border: 1px solid #d8e5f2;
   border-radius: 8px;
   background: #0f172a;
+}
+
+.cv-yolo-response-card {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.cv-yolo-response-card div {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.cv-yolo-response-card span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.cv-yolo-response-card strong {
+  color: #0f2747;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.cv-fusion-ready {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  color: #166534;
+  background: #f0fdf4;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.cv-upload-fallback-preview {
+  display: grid;
+  gap: 8px;
+}
+
+.cv-upload-fallback-preview small {
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .cv-backend-guidance {

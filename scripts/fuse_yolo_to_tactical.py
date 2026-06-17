@@ -29,10 +29,13 @@ def load_json(path: Path, fallback: Any) -> Any:
         return fallback
 
 
-def write_fusion(fusion_mode: str, targets: list[dict[str, Any]]) -> None:
+def write_fusion(fusion_mode: str, targets: list[dict[str, Any]], metadata: dict[str, Any] | None = None) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+    payload = {"fusion_mode": fusion_mode, "targets": targets}
+    if metadata:
+        payload.update(metadata)
     with FUSION_PATH.open("w", encoding="utf-8") as handle:
-        json.dump({"fusion_mode": fusion_mode, "targets": targets}, handle, indent=2)
+        json.dump(payload, handle, indent=2)
         handle.write("\n")
 
 
@@ -232,10 +235,23 @@ def main() -> int:
     else:
         risk_entries = []
     risk_by_id = risk_lookup(risk_entries)
-    person_detections = [
-        det for det in detections
-        if detection_class(det) in {"person", "soldier", "casualty", "0", ""}
-    ]
+    person_detections = []
+    yolo_confirmed_count = 0
+    yolo_candidate_count = 0
+    yolo_rejected_count = 0
+    yolo_rejected_count = 0
+
+    for det in detections:
+        if detection_class(det) not in {"person", "soldier", "casualty", "0", ""}:
+            continue
+        status = det.get("status", "confirmed")
+        if status == "confirmed":
+            person_detections.append(det)
+            yolo_confirmed_count += 1
+        elif status == "candidate":
+            yolo_candidate_count += 1
+        elif status.startswith("rejected"):
+            yolo_rejected_count += 1
 
     targets: list[dict[str, Any]] = []
     for index, det in enumerate(person_detections):
@@ -283,7 +299,18 @@ def main() -> int:
     ]
 
     if not targets and not manual_targets:
-        write_fusion("NO_DATA", [])
+        metadata = {
+            "yolo_confirmed_count": yolo_confirmed_count,
+            "yolo_candidate_count": yolo_candidate_count,
+            "yolo_rejected_count": yolo_rejected_count,
+            "source": "YOLO",
+            "confidence_policy": "confirmed_only_for_tactical_fusion",
+        }
+        if yolo_candidate_count > 0:
+            metadata["review_required"] = True
+            write_fusion("YOLO_CANDIDATES_REQUIRE_REVIEW", [], metadata)
+        else:
+            write_fusion("NO_CONFIRMED_YOLO_TARGETS", [], metadata)
         return 0
 
     targets.sort(key=lambda target: target["risk_score"], reverse=True)
@@ -296,7 +323,16 @@ def main() -> int:
     if targets and manual_targets:
         fusion_mode = f"{fusion_mode}_MANUAL"
 
-    write_fusion(fusion_mode, combined_targets)
+    metadata = {
+        "yolo_confirmed_count": yolo_confirmed_count,
+        "yolo_candidate_count": yolo_candidate_count,
+        "yolo_rejected_count": yolo_rejected_count,
+        "source": "YOLO",
+        "confidence_policy": "confirmed_only_for_tactical_fusion",
+        "review_required": False,
+    }
+
+    write_fusion(fusion_mode, combined_targets, metadata)
     return 0
 
 
