@@ -142,6 +142,12 @@ For frontend compatibility, `GPU_time_ms`, `speedup`, `correctness`, `max_abs_er
 
 ### Measured Colab Tesla T4 Benchmark
 
+Safe demo wording:
+
+```text
+Up to 213x CUDA Tiled speedup on Google Colab Tesla T4, with correctness PASS and Top-10 overlap 10/10. Performance depends on GPU, driver, CUDA runtime, and workload size.
+```
+
 | N soldiers | CPU core ms | GPU basic ms | GPU tiled ms | Tiled speedup | Correctness |
 |---:|---:|---:|---:|---:|---|
 | 128 | 2.674 | 0.088 | 0.041 | 64.819x | PASS |
@@ -164,6 +170,28 @@ Correctness: PASS
 ## Build and Run Locally
 
 Run from the project root.
+
+Recommended one-command demo launcher:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start_resqvision_demo.ps1
+```
+
+Useful launcher variants:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\start_resqvision_demo.ps1 -StartYolo
+powershell -ExecutionPolicy Bypass -File .\scripts\start_resqvision_demo.ps1 -NoYolo
+powershell -ExecutionPolicy Bypass -File .\scripts\start_resqvision_demo.ps1 -UseColabImport
+powershell -ExecutionPolicy Bypass -File .\scripts\status_resqvision_demo.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\stop_resqvision_demo.ps1
+```
+
+`start_resqvision_demo.ps1` is the recommended demo entry point. It prepares/reuses the Python venv, installs frontend dependencies only when needed, runs local CUDA or imports Colab outputs, starts the optional YOLO backend when possible, starts the React dashboard, opens the browser, and prints a clean status summary.
+
+The dashboard still works if YOLO is offline. In that case the Computer Vision page uses the human-reviewed demo preview.
+
+CUDA-only runner:
 
 ```powershell
 .\scripts\check_cuda.ps1
@@ -207,6 +235,8 @@ Recommended Colab flow:
 ```powershell
 .\scripts\import_colab_outputs.ps1
 ```
+
+Do not run `scripts\csv_to_json.py` after importing Colab outputs unless you intentionally want to regenerate JSON from local CSV files. Running it after Colab import may overwrite newer Colab JSON with older local CSV data.
 
 ---
 

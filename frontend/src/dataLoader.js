@@ -2,8 +2,8 @@
 function normalizeBenchmarkRow(row) {
   const soldiers = Number(row.N ?? row.soldiers ?? row.n ?? 0);
   const cpu = Number(row.CPU_time_ms ?? row.cpu ?? row.cpu_ms ?? 0);
-  const gpu = Number(row.GPU_time_ms ?? row.gpu ?? row.gpu_ms ?? 0);
-  const speedup = Number(row.speedup ?? row.Speedup ?? 0);
+  const gpu = Number(row.GPU_tiled_time_ms ?? row.GPU_time_ms ?? row.gpu ?? row.gpu_ms ?? 0);
+  const speedup = Number(row.speedup_tiled ?? row.speedup ?? row.Speedup ?? 0);
   if (!soldiers || !cpu) return null;
   return {
     soldiers,

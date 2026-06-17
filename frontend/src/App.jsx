@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   BarChart3,
+  Camera,
   Clock,
   Cpu,
   Crosshair,
@@ -10,7 +11,8 @@ import {
   Network,
   Plane,
   RadioTower,
-  ShieldCheck
+  ShieldCheck,
+  Upload
 } from 'lucide-react';
 import {
   architectureSteps,
@@ -67,7 +69,7 @@ function useCudaData() {
 
 function Shell({ activePage, setActivePage, children }) {
   return (
-    <div className={`app-shell ${activePage === 'command' ? 'command-active' : ''}`}>
+    <div className={`app-shell ${activePage === 'command' ? 'command-active' : ''} ${activePage === 'mission' ? 'mission-active' : ''}`}>
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-mark">R</div>
@@ -107,6 +109,22 @@ function PageHeader({ eyebrow, title, description }) {
   );
 }
 
+function PageExplainer({ children, tags = [] }) {
+  return (
+    <div className="page-explainer">
+      <strong>What this page shows</strong>
+      <p>{children}</p>
+      {tags.length ? (
+        <div className="page-tags">
+          {tags.map((tag) => (
+            <span key={tag}>{tag}</span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function MissionPlan({ riskRanking, attentionStats, fusionMode, manualDronePoints, setActivePage, setExpandedMap }) {
   const [variant, setVariant] = useState(false);
   const mission = variant ? missionVariant : missionBase;
@@ -140,6 +158,9 @@ function MissionPlan({ riskRanking, attentionStats, fusionMode, manualDronePoint
           </button>
         </div>
       </div>
+      <PageExplainer tags={['Demo / Simulated', 'Local GPU Mode', 'Colab Fallback']}>
+        Pre-operation scenario view. Tactical Command uses the imported CUDA risk data after the scenario is loaded.
+      </PageExplainer>
 
       <div className="mission-summary-grid">
         <article className="metric-card metric-blue">
@@ -182,7 +203,7 @@ function MissionPlan({ riskRanking, attentionStats, fusionMode, manualDronePoint
           <section className="panel mission-compact-panel">
             <div className="panel-title">
               <h3>Readiness</h3>
-              <span>Pre-op</span>
+              <span>Readiness status</span>
             </div>
             <div className="readiness-grid">
               {readinessCards.map((card) => (
@@ -197,7 +218,7 @@ function MissionPlan({ riskRanking, attentionStats, fusionMode, manualDronePoint
           <section className="panel mission-compact-panel">
             <div className="panel-title">
               <h3>Briefing Checklist</h3>
-              <span>Required</span>
+              <span>Pre-op summary</span>
             </div>
             <div className="checklist-chip-grid">
               {missionChecklist.map((item) => (
@@ -209,7 +230,7 @@ function MissionPlan({ riskRanking, attentionStats, fusionMode, manualDronePoint
           <section className="panel mission-compact-panel">
             <div className="panel-title">
               <h3>Field Assets</h3>
-              <span>Available</span>
+              <span>Mission context</span>
             </div>
             <div className="asset-chip-grid">
               <span>UAV available</span>
@@ -223,7 +244,7 @@ function MissionPlan({ riskRanking, attentionStats, fusionMode, manualDronePoint
           <section className="panel mission-compact-panel">
             <div className="panel-title">
               <h3>Mission Timeline</h3>
-              <span>Sequence</span>
+              <span>Next action</span>
             </div>
             <div className="compact-timeline">
               {missionTimeline.map((step, index) => (
@@ -244,14 +265,8 @@ function MissionPlan({ riskRanking, attentionStats, fusionMode, manualDronePoint
               <div><span>Critical</span><strong className="critical-text">{criticalCount}</strong></div>
               <div><span>Urgent</span><strong className="urgent-text">{urgentCount}</strong></div>
               <div><span>Stable</span><strong className="stable-text">{stableCount}</strong></div>
-              <div><span>Top cluster</span><strong>S-0412 / S-0188 / S-0774</strong></div>
+              <p>Full ranking in Tactical Command.</p>
             </div>
-          </section>
-
-          <section className="panel mission-compact-panel mission-action-panel">
-            <button className="primary-button compact-button" onClick={() => setActivePage('command')}>
-              Enter Tactical Command
-            </button>
           </section>
         </aside>
       </div>
@@ -380,6 +395,9 @@ function TacticalCommand({ riskRanking, attentionStats, fusionMode, manualDroneP
           </article>
         </div>
       </header>
+      <PageExplainer tags={['Real / Implemented', 'Demo / Simulated']}>
+        Uses CUDA-generated risk ranking and attention statistics to prioritize evacuation targets.
+      </PageExplainer>
 
       <div className="tc-main">
         <section className="tc-map-panel">
@@ -400,7 +418,7 @@ function TacticalCommand({ riskRanking, attentionStats, fusionMode, manualDroneP
             <Crosshair size={18} />
             <h2>Top Evacuation Targets</h2>
           </div>
-          <p>Sorted by risk score</p>
+          <p>Sorted by CUDA-generated risk score.</p>
 
           <div className="tc-target-list">
             {visibleTargets.map((target) => (
@@ -461,13 +479,23 @@ function TacticalCommand({ riskRanking, attentionStats, fusionMode, manualDroneP
 }
 
 function Analytics({ benchmarks, attentionStats }) {
+  const formatTop10Overlap = (value) => {
+    if (value === undefined || value === null || value === '') return 'N/A';
+    const text = String(value);
+    return text.includes('/') ? text : `${text}/10`;
+  };
   const benchmarkSource = benchmarks ?? benchmarkRows;
+  const maxSpeedup = benchmarkSource.reduce((max, row) => {
+    const value = Number(row.speedup ?? 0);
+    return Number.isFinite(value) && value > max ? value : max;
+  }, 0);
+  const speedupLabel = maxSpeedup ? `Up to ${Math.round(maxSpeedup)}x Speedup` : 'CUDA Speedup';
   const chartData = useMemo(
     () => {
       return benchmarkSource.map((row) => ({
         soldiers: row.soldiers,
         CPU: row.cpu ?? row.CPU,
-        GPU: row.gpu ?? row.GPU,
+        'CUDA Tiled': row.gpu ?? row.GPU,
         speedup: row.speedup
       }));
     },
@@ -479,7 +507,7 @@ function Analytics({ benchmarks, attentionStats }) {
   const metrics = lastBenchmark
     ? {
         status: lastBenchmark.correctness ?? 'PASS',
-        top10Overlap: `${lastBenchmark.top10Overlap}/10`,
+        top10Overlap: formatTop10Overlap(lastBenchmark.top10Overlap),
         maxAbsError: lastBenchmark.maxAbsError,
         meanAbsError: lastBenchmark.meanAbsError,
         attentionEntropy: correctnessMetrics.attentionEntropy
@@ -493,11 +521,14 @@ function Analytics({ benchmarks, attentionStats }) {
         title="Analytics"
         description="Benchmark and correctness signals from the ResQVision CUDA attention engine, presented for static demonstration."
       />
+      <PageExplainer tags={['Real / Implemented', 'Colab Fallback', 'Local GPU Mode']}>
+        Displays verified CUDA Attention benchmark outputs generated by resqvision.cu and imported as JSON.
+      </PageExplainer>
 
       <div className="content-grid two-columns">
         <section className="panel chart-panel">
           <div className="panel-title">
-            <h3>CPU vs GPU Runtime</h3>
+            <h3>CPU vs CUDA Runtime</h3>
             <span>Milliseconds by scenario size</span>
           </div>
           <ResponsiveContainer width="100%" height={280}>
@@ -507,13 +538,13 @@ function Analytics({ benchmarks, attentionStats }) {
               <YAxis />
               <Tooltip />
               <Bar dataKey="CPU" fill="#93c5fd" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="GPU" fill="#2563eb" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="CUDA Tiled" fill="#2563eb" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </section>
         <section className="panel chart-panel">
           <div className="panel-title">
-            <h3>GPU Speedup</h3>
+            <h3>{speedupLabel}</h3>
             <span>Attention kernel acceleration</span>
           </div>
           <ResponsiveContainer width="100%" height={280}>
@@ -534,12 +565,13 @@ function Analytics({ benchmarks, attentionStats }) {
             <h3>Benchmark Table</h3>
             <span>{benchmarks ? 'CUDA benchmark output' : 'Mock fallback output'}</span>
           </div>
+          <p className="table-note">Best verified CUDA tiled result exported from Colab benchmark sweep.</p>
           <table>
             <thead>
               <tr>
                 <th>Soldiers</th>
                 <th>CPU ms</th>
-                <th>GPU ms</th>
+                <th>CUDA Tiled ms</th>
                 <th>Speedup</th>
               </tr>
             </thead>
@@ -557,6 +589,9 @@ function Analytics({ benchmarks, attentionStats }) {
         </section>
         <section className="panel metrics-panel">
           <h3>Correctness Metrics</h3>
+          <p className="metrics-subtitle">
+            Status PASS means CUDA output matches the CPU reference within tolerance. Top-10 overlap compares CPU and CUDA triage priority ranking. Max and mean absolute error validate numerical accuracy.
+          </p>
           <div className="status-row">
             <span>Status</span>
             <strong className="pass">{metrics.status}</strong>
@@ -577,47 +612,88 @@ function Analytics({ benchmarks, attentionStats }) {
           <p>GPU acceleration enables ResQVision to scale attention-based risk assessment toward larger battlefield scenarios while preserving CPU/GPU correctness validation.</p>
         </section>
       </div>
+
+      <section className="panel demo-flow-card">
+        <div>
+          <h3>Demo Flow</h3>
+          <p>How this dashboard is generated.</p>
+        </div>
+        <ol>
+          <li>CUDA / Colab generates benchmark and risk data.</li>
+          <li>JSON files are imported into <code>frontend/public/data</code>.</li>
+          <li>Dashboard visualizes triage ranking and tactical map data.</li>
+          <li>Optional image/camera input simulates UAV visual detection.</li>
+        </ol>
+        <p className="gpu-note">
+          Local GPU execution requires an NVIDIA GPU, NVIDIA driver, CUDA Toolkit / nvcc, and MSVC Build Tools on Windows. If unavailable, use the Google Colab workflow and import <code>resqvision_cuda_outputs.zip</code>.
+        </p>
+      </section>
     </section>
   );
 }
 
 function SystemArchitecture() {
   const realPipelineSteps = [
-    'CUDA / Colab Simulation',
-    'CSV Artifact Export',
+    'CUDA / Colab Benchmark',
+    'CSV Artifacts',
     'JSON Conversion',
     'React dataLoader',
-    'Benchmark Analytics',
+    'Analytics',
     'Risk Ranking',
-    'Tactical Map Markers',
-    'Evacuation Decision Queue'
+    'Tactical Map',
+    'Command Decision View'
   ];
+  const pipelineDetails = [
+    ['Academic core', 'resqvision.cu runs attention benchmark and risk scoring.', 'core'],
+    ['Real / Implemented', 'Benchmark and sweep outputs are exported for conversion.', 'real'],
+    ['Real / Implemented', 'CSV files become frontend-ready JSON data.', 'real'],
+    ['Real / Implemented', 'Dashboard reads frontend/public/data.', 'real'],
+    ['Real / Implemented', 'Charts show timing, speedup, and correctness.', 'real'],
+    ['Real / Implemented', 'Priority rows drive triage display and targets.', 'real'],
+    ['Demo / Simulated', 'Targets and optional visual detections become markers.', 'demo'],
+    ['Demo / Simulated', 'Recommended actions are presented for the project demo.', 'demo']
+  ];
+  const cudaFlow = ['resqvision.cu', 'benchmark_results.json', 'risk_ranking.json', 'attention_stats.json', 'React dashboard', 'Tactical Command'];
+  const cvFlow = ['image / camera input', 'optional YOLO backend', 'detections.json / tactical_fusion.json', 'visual overlay', 'tactical map markers'];
 
   return (
     <section>
       <PageHeader
         eyebrow="Pipeline architecture"
         title="System Architecture"
-        description="A static overview of how visual detection, wearable telemetry, CUDA attention, and command visualization fit together."
+        description="A clear view of what is implemented, what is simulated, and how data moves through the project."
       />
+      <PageExplainer tags={['Real / Implemented', 'Demo / Simulated', 'Optional Backend Required']}>
+        The CUDA data path is the project core. The UAV visual layer is optional and feeds the same dashboard only when demo data or a local backend is available.
+      </PageExplainer>
 
-      <section className="panel pipeline-panel">
-        <h3>Operational Pipeline</h3>
-        <div className="pipeline">
+      <section className="panel pipeline-panel architecture-pipeline">
+        <div className="panel-title">
+          <h3>Operational Pipeline</h3>
+          <span>CUDA to dashboard</span>
+        </div>
+        <div className="architecture-steps">
           {realPipelineSteps.map((step, index) => (
-            <div className="pipeline-step" key={step}>
+            <article className={`architecture-step step-${pipelineDetails[index][2]}`} key={step}>
               <span>{index + 1}</span>
-              <strong>{step}</strong>
-            </div>
+              <div>
+                <strong>{step}</strong>
+                <p>{pipelineDetails[index][1]}</p>
+                <em>{pipelineDetails[index][0]}</em>
+              </div>
+            </article>
           ))}
         </div>
       </section>
 
       <div className="content-grid two-columns">
-        <section className="panel cuda-panel">
+        <section className="panel data-flow-panel">
           <Network size={28} />
-          <h3>Live Data Flow</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginTop: '18px' }}>
+          <h3>Flow 1 - CUDA Data Flow</h3>
+          <div className="flow-chain">
+            {cudaFlow.map((step) => <span key={step}>{step}</span>)}
+          </div>
+          <div style={{ display: 'none', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginTop: '18px' }}>
             <div className="pipeline-step" style={{ minHeight: 'auto', padding: '12px', flex: '1 1 auto' }}><strong>CUDA C++ Attention Engine</strong></div>
             <span style={{ color: 'var(--muted)', fontWeight: 'bold' }}>→</span>
             <div className="pipeline-step" style={{ minHeight: 'auto', padding: '12px', flex: '1 1 auto' }}><strong>benchmark_results.json</strong></div>
@@ -629,42 +705,66 @@ function SystemArchitecture() {
             <div className="pipeline-step" style={{ minHeight: 'auto', padding: '12px', flex: '1 1 auto' }}><strong>React dashboard</strong></div>
           </div>
         </section>
-        <section className="panel cuda-panel">
-          <ShieldCheck size={28} />
-          <h3>Fallback Safety Layer</h3>
-          <ul>
-            <li>If JSON files exist, dashboard uses CUDA output.</li>
-            <li>If JSON files are missing or malformed, dashboard falls back to mock data.</li>
-            <li>This keeps the demo stable.</li>
-          </ul>
+        <section className="panel data-flow-panel">
+          <Eye size={28} />
+          <h3>Flow 2 - Computer Vision Demo Flow</h3>
+          <div className="flow-chain flow-chain-optional">
+            {cvFlow.map((step) => <span key={step}>{step}</span>)}
+          </div>
         </section>
       </div>
 
       <div className="content-grid two-columns">
         <section className="panel cuda-panel">
-          <Activity size={28} />
-          <h3>What is still simulated</h3>
-          <ul>
-            <li>UAV imagery</li>
-            <li>YOLO detection</li>
-            <li>ResQBand live telemetry</li>
-            <li>Real-time backend</li>
-            <li>Clinical decision approval</li>
-          </ul>
-        </section>
-        <section className="panel cuda-panel">
           <Cpu size={28} />
           <h3>What is real now</h3>
           <ul>
-            <li>CUDA benchmark output</li>
+            <li>Verified CUDA benchmark output</li>
+            <li>CUDA Basic + CUDA Tiled comparison</li>
+            <li>CPU/GPU correctness validation</li>
             <li>Risk ranking JSON</li>
-            <li>Attention statistics JSON</li>
-            <li>Analytics charts</li>
-            <li>Tactical Command top targets</li>
-            <li>Tactical map casualty markers</li>
+            <li>React dashboard visualization</li>
+            <li>Human-reviewed visual demo preview</li>
+          </ul>
+        </section>
+        <section className="panel cuda-panel simulated-panel">
+          <Activity size={28} />
+          <h3>What is simulated / optional</h3>
+          <ul>
+            <li>Live UAV video feed</li>
+            <li>Live YOLO backend unless scripts/yolo_server.py is running</li>
+            <li>Real ResQBand telemetry stream</li>
+            <li>Automated evacuation dispatch</li>
+            <li>Clinical approval</li>
           </ul>
         </section>
       </div>
+
+      <section className="panel execution-mode-panel">
+        <div className="panel-title">
+          <h3>Execution Modes</h3>
+          <span>Choose based on hardware</span>
+        </div>
+        <div className="execution-mode-grid">
+          <article>
+            <strong>Local GPU Mode</strong>
+            <p>NVIDIA GPU, driver, CUDA Toolkit / nvcc, and MSVC Build Tools on Windows.</p>
+            <code>scripts/check_cuda.ps1</code>
+            <code>scripts/run_cuda_local.ps1</code>
+          </article>
+          <article>
+            <strong>Colab Fallback Mode</strong>
+            <p>Use when local CUDA is unavailable. Run the notebook with GPU runtime and import the exported ZIP locally.</p>
+            <code>ResQVision_Colab_Workflow.ipynb</code>
+            <code>scripts/import_colab_outputs.ps1</code>
+          </article>
+          <article>
+            <strong>Computer Vision Local Mode</strong>
+            <p>Use only when the optional detection backend is running.</p>
+            <code>python scripts/yolo_server.py</code>
+          </article>
+        </div>
+      </section>
     </section>
   );
 }
@@ -689,6 +789,7 @@ function normalizeManualCoordinate(value, size) {
 }
 
 function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTacticalData }) {
+  const videoRef = useRef(null);
   const [detections, setDetections] = useState(CV_MOCK);
   const [detectionSource, setDetectionSource] = useState(null);
   const [hasLiveData, setHasLiveData] = useState(false);
@@ -709,6 +810,10 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
   const [backendError, setBackendError] = useState(null);
   const [serverStatus, setServerStatus] = useState(null);
   const [yoloNoDetections, setYoloNoDetections] = useState(false);
+  const [cameraStream, setCameraStream] = useState(null);
+  const [cameraError, setCameraError] = useState(null);
+  const [backendOnline, setBackendOnline] = useState(false);
+  const [trainingToolsOpen, setTrainingToolsOpen] = useState(false);
 
   // --- Pipeline state ---
   const [batchQueue, setBatchQueue] = useState([]);        // File[]
@@ -845,7 +950,45 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
   const primaryDetectionCount = humanReviewAvailable
     ? humanReviewData?.detection_count ?? humanReviewData?.detections?.length ?? 0
     : 'Not available';
-  const primarySource = humanReviewAvailable ? humanReviewData?.source ?? 'human_review_demo' : detectionSource ?? 'raw_yolo_output';
+  const primarySource = humanReviewAvailable ? 'Human-reviewed demo' : detectionSource ?? 'Raw YOLO output';
+  const visualSource = selectedImageFile
+    ? (manualImageName?.startsWith('camera-uav-frame-') ? 'Camera frame' : 'Uploaded image')
+    : humanReviewAvailable ? 'Human-reviewed demo' : hasLiveData ? 'Live JSON' : 'Demo preview';
+  const outputMode = backendOnline
+    ? selectedImageFile ? 'YOLO inference ready' : 'Demo preview'
+    : manualDronePoints.length ? 'Manual review' : 'Demo preview';
+  const currentMode = backendOnline && selectedImageFile ? 'Live YOLO Detection' : 'Demo Preview';
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkBackend = () => {
+      fetch('http://127.0.0.1:8000/api/health')
+        .then((response) => {
+          if (!cancelled) setBackendOnline(response.ok);
+        })
+        .catch(() => {
+          if (!cancelled) setBackendOnline(false);
+        });
+    };
+    checkBackend();
+    const interval = setInterval(checkBackend, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (videoRef.current && cameraStream) {
+      videoRef.current.srcObject = cameraStream;
+    }
+  }, [cameraStream]);
+
+  useEffect(() => {
+    return () => {
+      cameraStream?.getTracks().forEach((track) => track.stop());
+    };
+  }, [cameraStream]);
 
   // Load a single File object into the image viewer (shared by single & batch).
   const loadFileIntoViewer = (file) => {
@@ -890,6 +1033,54 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
       setBatchIndex(0);
       loadFileIntoViewer(sorted[0]);
     }
+  };
+
+  const startCameraInput = async () => {
+    setCameraError(null);
+    setBackendError(null);
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('Camera input is not supported in this browser. Use image upload for the demo input.');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      setCameraStream(stream);
+    } catch (error) {
+      setCameraError(error.message || 'Camera permission was denied. Use image upload for the demo input.');
+    }
+  };
+
+  const stopCameraInput = () => {
+    cameraStream?.getTracks().forEach((track) => track.stop());
+    setCameraStream(null);
+  };
+
+  const captureCameraFrame = () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setCameraError('Camera frame is not ready yet.');
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setCameraError('Could not capture camera frame.');
+        return;
+      }
+      const file = new File([blob], `camera-uav-frame-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      resetPipelineState();
+      setBatchQueue([file]);
+      setBatchIndex(0);
+      loadFileIntoViewer(file);
+      setServerStatus('Camera frame captured for UAV-style simulation input.');
+    }, 'image/jpeg', 0.92);
   };
 
   const handleManualImageLoad = (event) => {
@@ -1368,30 +1559,158 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
     <section className="cv-page">
       <PageHeader
         eyebrow="Computer vision"
-        title="Detection Preview"
-        description="Upload a drone frame, run local YOLO inference, then manually confirm or tag soldiers by ResQBand ID."
+        title="UAV Visual Simulation"
+        description="Simulate a drone-style visual input using either image upload, browser camera, or human-reviewed demo preview."
       />
+      <PageExplainer tags={['Demo / Simulated', 'Optional Backend Required']}>
+        Demo Preview uses a human-reviewed image. Live YOLO requires <code>python scripts/yolo_server.py</code>. CUDA benchmark data is separate and already loaded from JSON.
+      </PageExplainer>
 
-      <div className="cv-note">
-        <Eye size={15} />
-        <span>Upload a drone frame, run local YOLO inference, then manually confirm or tag soldiers by ResQBand ID.</span>
-        <span className={`cv-source-badge ${isOfflineImage ? 'cv-badge-offline' : hasLiveData ? 'cv-badge-live' : 'cv-badge-mock'}`}>
-          {sourceLabel}
-        </span>
-        {hasLiveData && detectionSource === 'live_camera' && <span className="cv-live-badge">LIVE</span>}
-      </div>
+      <section className={`panel cv-mode-explainer ${backendOnline ? 'is-online' : 'is-offline'}`}>
+        <h2>Current mode: {currentMode}</h2>
+        {backendOnline ? (
+          <p>YOLO backend is online. Upload an image or capture a camera frame, then run detection to generate live YOLO output.</p>
+        ) : (
+          <p>YOLO backend is offline, so this page shows a stable human-reviewed preview. This is not live YOLO output. For the full automated demo, run <code>powershell -ExecutionPolicy Bypass -File .\scripts\start_resqvision_demo.ps1 -StartYolo</code>, refresh the page, then upload an image or capture a camera frame.</p>
+        )}
+      </section>
+
+      <section className={`cv-status-banner ${backendOnline ? 'is-online' : 'is-offline'}`}>
+        <div>
+          <span>Current mode</span>
+          <strong>{backendOnline && selectedImageFile ? 'Live YOLO Detection' : 'Demo Preview'}</strong>
+        </div>
+        <div>
+          <span>YOLO Backend</span>
+          <strong>{backendOnline ? 'Online' : 'Offline'}</strong>
+        </div>
+        <div>
+          <span>Detection</span>
+          <strong>{backendOnline && selectedImageFile ? 'YOLO inference ready' : 'Human-reviewed fallback'}</strong>
+        </div>
+        <div>
+          <span>Output</span>
+          <strong>{backendOnline && selectedImageFile ? outputMode : 'Visual demo overlay'}</strong>
+        </div>
+      </section>
+
+      <section className="panel cv-workflow-card">
+        <div>
+          <strong>Demo mode</strong>
+          <span>Human-reviewed image</span>
+          <i>visual overlay</i>
+          <span>dashboard preview</span>
+        </div>
+        <div>
+          <strong>Live detection mode</strong>
+          <span>Upload/camera</span>
+          <i>YOLO backend</i>
+          <span>detections.json / tactical_fusion.json</span>
+          <i>dashboard overlay</i>
+        </div>
+      </section>
+
+      <section className="panel cv-steps-card">
+        <article>
+          <i>1</i>
+          <strong>Select Visual Input</strong>
+          <p>Choose demo preview, upload image, or browser camera.</p>
+          <em>Current: {visualSource}</em>
+        </article>
+        <article>
+          <i>2</i>
+          <strong>Run Detection</strong>
+          <p>{backendOnline ? 'Run YOLO inference on uploaded or captured input.' : 'Backend is offline, so use the human-reviewed demo preview.'}</p>
+          <em>{backendOnline ? 'Action: Run Detection' : 'Fallback active'}</em>
+        </article>
+        <article>
+          <i>3</i>
+          <strong>Review and Send</strong>
+          <p>Use detections for visual overlay and Tactical Command map markers.</p>
+          <em>Review before dashboard use</em>
+        </article>
+      </section>
+
+      <section className="panel cv-input-card">
+        <div className="cv-section-heading">
+          <h2>Visual Input Source</h2>
+          <p>Select the source for the UAV-style visual layer before reviewing the current result.</p>
+        </div>
+        <div className={`cv-input-option cv-demo-option ${!selectedImageFile ? 'is-active' : ''}`}>
+          <Eye size={20} />
+          <div>
+            <h3>Human-reviewed demo</h3>
+            <p>Always available. Uses reviewed annotations. Recommended for stable demo.</p>
+          </div>
+          <button type="button" className="cv-mode-button" onClick={() => {
+            setSelectedImageFile(null);
+            setManualImageName(null);
+            setManualImageUrl((currentUrl) => {
+              if (currentUrl) URL.revokeObjectURL(currentUrl);
+              return null;
+            });
+            setServerStatus('Human-reviewed demo preview is active.');
+          }}>
+            {!selectedImageFile ? 'Currently Active' : 'Use Demo Preview'}
+          </button>
+        </div>
+        <div className="cv-input-option">
+          <Upload size={20} />
+          <div>
+            <h3>Upload UAV-style Image</h3>
+            <p>Requires YOLO backend. Upload image and run YOLO inference through the local Python backend.</p>
+          </div>
+          <label className="drone-file-control compact">
+            <span>Select Image</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleManualImageChange}
+            />
+          </label>
+          <button
+            type="button"
+            className="cv-run-detection"
+            onClick={runYoloOnUploadedImage}
+            disabled={!backendOnline || !selectedImageFile || isRunningYolo}
+          >
+            {isRunningYolo ? 'Running Detection...' : 'Run Detection'}
+          </button>
+          {!backendOnline ? <small>Start scripts/yolo_server.py to enable detection.</small> : null}
+        </div>
+        <div className="cv-input-option">
+          <Camera size={20} />
+          <div>
+            <h3>Browser Camera Simulation</h3>
+            <p>Camera preview/capture is browser-side. YOLO inference requires backend.</p>
+          </div>
+          <div className="camera-controls">
+            <button type="button" onClick={cameraStream ? stopCameraInput : startCameraInput}>
+              {cameraStream ? 'Stop Camera' : 'Start Camera'}
+            </button>
+            <button type="button" onClick={captureCameraFrame} disabled={!cameraStream}>
+              Capture Frame
+            </button>
+          </div>
+          {!backendOnline ? <small>Capture can simulate input, but detection requires YOLO backend.</small> : null}
+        </div>
+        {cameraStream ? (
+          <video ref={videoRef} className="cv-camera-preview" autoPlay muted playsInline />
+        ) : null}
+        {cameraError ? <div className="cv-yolo-empty">{cameraError}</div> : null}
+      </section>
 
       <section className="panel cv-human-review-card">
         <div className="cv-human-review-header">
           <div>
-            <h2>Human-Reviewed Tactical Annotation</h2>
-            <p>YOLO-assisted visual localization corrected by a human reviewer before operational visualization.</p>
+            <h2>Current Visual Result</h2>
+            <p>{backendOnline && selectedImageFile ? 'Uploaded or captured visual input ready for YOLO inference.' : 'This preview is human-reviewed and is shown because live YOLO inference is currently unavailable. This is not live YOLO output. It is a human-reviewed demo preview shown while the YOLO backend is offline.'}</p>
           </div>
-          <dl className="cv-human-review-summary">
+          <dl className="cv-human-review-summary readable-summary">
             <div><dt>Source</dt><dd>{primarySource}</dd></div>
-            <div><dt>Detection count</dt><dd>{primaryDetectionCount}</dd></div>
-            <div><dt>Status</dt><dd>{humanReviewAvailable ? 'Human Reviewed' : 'Fallback'}</dd></div>
-            <div><dt>Usage</dt><dd>Demo visualization</dd></div>
+            <div><dt>Detections</dt><dd>{primaryDetectionCount}</dd></div>
+            <div><dt>Review status</dt><dd>{humanReviewAvailable ? 'Human reviewed' : 'Fallback preview'}</dd></div>
+            <div><dt>Used for</dt><dd>Demo visualization</dd></div>
           </dl>
         </div>
 
@@ -1426,12 +1745,40 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
         )}
       </section>
 
+      <section className={`cv-backend-guidance ${backendOnline ? 'is-online' : ''}`}>
+        <div>
+          <strong>{backendOnline ? 'YOLO Backend Online' : 'YOLO Backend Not Running - Demo Fallback Active'}</strong>
+          {backendOnline ? (
+            <p>YOLO inference can run against the local server. Upload or capture a frame, then run detection.</p>
+          ) : (
+            <>
+              <p>YOLO backend is offline. For the full automated demo, run:</p>
+              <p><code>powershell -ExecutionPolicy Bypass -File .\scripts\start_resqvision_demo.ps1 -StartYolo</code></p>
+              <p>Manual local YOLO option:</p>
+              <ol>
+                <li>Make sure your Python environment is active.</li>
+                <li>Run: <code>python scripts/yolo_server.py</code></li>
+                <li>Refresh this page.</li>
+                <li>Upload an image or capture a frame.</li>
+              </ol>
+              <p>The page will continue using the human-reviewed fallback preview.</p>
+            </>
+          )}
+        </div>
+      </section>
+
       <div className="cv-pipeline-layout">
-        <section className="panel pipeline-panel">
-          <div className="panel-title">
-            <h3>One-Button Training Pipeline</h3>
-            <span>Automated Dataset & Model Generation</span>
-          </div>
+        <details className="panel pipeline-panel cv-training-details" open={trainingToolsOpen} onToggle={(event) => setTrainingToolsOpen(event.currentTarget.open)}>
+          <summary>
+            <div>
+              <h3>Optional YOLO Training Pipeline</h3>
+              <span>Not required for CUDA benchmark demo</span>
+            </div>
+            <b>{trainingToolsOpen ? 'Hide Optional Training Tools' : 'Show Optional Training Tools'}</b>
+          </summary>
+          <p className="manual-demo-note">
+            Training is only needed to update the visual model. It is not required for CUDA benchmark or normal demo.
+          </p>
 
           <div className="pipeline-controls">
             <label className="drone-file-control">
@@ -1542,7 +1889,7 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
               <small>{backendError}</small>
             </div>
           )}
-        </section>
+        </details>
       </div>
 
       {showRawYoloDebug ? (
@@ -1827,6 +2174,7 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
 export default function App() {
   const [activePage, setActivePage] = useState('mission');
   const [expandedMap, setExpandedMap] = useState(null);
+  const [globalYoloOnline, setGlobalYoloOnline] = useState(false);
   const [manualDronePoints, setManualDronePoints] = useState(() => {
     try {
       const stored = window.localStorage.getItem(MANUAL_POINTS_STORAGE_KEY);
@@ -1837,6 +2185,32 @@ export default function App() {
     }
   });
   const cudaData = useCudaData();
+  const cudaDataLoaded = Boolean(cudaData.benchmarks?.length && cudaData.riskRanking?.length);
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkYolo = () => {
+      fetch('http://127.0.0.1:8000/api/health')
+        .then((response) => {
+          if (!cancelled) setGlobalYoloOnline(response.ok);
+        })
+        .catch(() => {
+          if (!cancelled) setGlobalYoloOnline(false);
+        });
+    };
+    checkYolo();
+    const interval = setInterval(checkYolo, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const globalBannerText = cudaDataLoaded
+    ? globalYoloOnline
+      ? 'Verified CUDA benchmark data loaded · YOLO backend online · live visual detection enabled'
+      : 'Verified CUDA benchmark data loaded from Colab export · YOLO backend offline · visual demo fallback active'
+    : 'CUDA benchmark data missing · run start_resqvision_demo.ps1 or import Colab outputs';
 
   useEffect(() => {
     window.localStorage.setItem(MANUAL_POINTS_STORAGE_KEY, JSON.stringify(manualDronePoints));
@@ -1870,7 +2244,7 @@ export default function App() {
       <div className="top-strip">
         <div>
           <Activity size={18} />
-          Static research demo · no backend · sample CUDA benchmark data
+          <span className="top-strip-message">{globalBannerText}</span>
         </div>
         <span>Operational Readiness: 94%</span>
       </div>
