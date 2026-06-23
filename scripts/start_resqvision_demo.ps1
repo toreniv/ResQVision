@@ -180,8 +180,15 @@ function Ensure-CudaData {
             Write-Warn "Colab import failed. Existing frontend JSON files were left untouched."
         }
     } else {
-        Write-Warn "Local CUDA unavailable and Colab ZIP was not found at $DownloadsZip"
-        Write-Host "[ACTION] Run ResQVision_Colab_Workflow.ipynb with GPU runtime, download resqvision_cuda_outputs.zip, then rerun with -UseColabImport."
+        Write-Host "[WARN] Colab ZIP not found at $DownloadsZip" -ForegroundColor Yellow
+        Write-Host "[INFO] To get CUDA benchmark data:"
+        Write-Host "[INFO]   1. Open ResQVision_Colab_Workflow.ipynb in Google Colab"
+        Write-Host "[INFO]   2. Runtime > Change runtime type > GPU"
+        Write-Host "[INFO]   3. Run All"
+        Write-Host "[INFO]   4. Download resqvision_cuda_outputs.zip when prompted"
+        Write-Host "[INFO]   5. Place it in your Downloads folder and re-run this launcher"
+        Write-Host "[WARN] Proceeding with existing local data if available." -ForegroundColor Yellow
+        Write-Host "       If no local data exists, the dashboard may show empty charts."
     }
 }
 
