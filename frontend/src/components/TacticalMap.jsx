@@ -30,7 +30,7 @@ function clampViewBox(nextViewBox) {
   };
 }
 
-export default function TacticalMap({ planning = false, showArrows = false, soldiers = [], attentionData = [], fusionMode = null, manualPoints = [] }) {
+export default function TacticalMap({ planning = false, showArrows = false, soldiers = [], attentionData = [], fusionMode = null, manualPoints = [], cvDetections = [] }) {
   const [viewBox, setViewBox] = useState({ x: 0, y: 0, w: MAP_SIZE, h: MAP_SIZE });
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef(null);
@@ -427,6 +427,29 @@ export default function TacticalMap({ planning = false, showArrows = false, sold
             </g>
           );
         })}
+
+        {cvDetections
+          .filter((det) => det?.status === 'confirmed' && Array.isArray(det?.bbox ?? det?.bbox_xyxy))
+          .map((det, i) => {
+            const [x1, y1, x2, y2] = det.bbox ?? det.bbox_xyxy;
+            const frameW = det.frameWidth ?? det.frame_width ?? det.imageWidth ?? det.image_width ?? 640;
+            const frameH = det.frameHeight ?? det.frame_height ?? det.imageHeight ?? det.image_height ?? 640;
+            const cx = (((x1 + x2) / 2) / frameW) * MAP_SIZE;
+            const cy = (((y1 + y2) / 2) / frameH) * MAP_SIZE;
+            return (
+              <g
+                key={det.id ?? `cv-${i}`}
+                className="cv-detection-marker"
+                transform={`translate(${cx}, ${cy})`}
+              >
+                <circle r={14} fill="none" stroke="#38bdf8" strokeWidth={2.5} />
+                <circle r={5} fill="#38bdf8" />
+                <text y={-20} textAnchor="middle" fontSize={11} fill="#38bdf8" fontWeight="bold">
+                  CV {Math.round(((det.score ?? det.confidence ?? 0) * 100))}%
+                </text>
+              </g>
+            );
+          })}
 
         <g transform="translate(20, 920)">
           <text fontSize="11" fill="#64748b" fontWeight="600" letterSpacing="1">ATTENTION</text>

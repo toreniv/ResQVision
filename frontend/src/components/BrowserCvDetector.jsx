@@ -150,7 +150,7 @@ async function loadImage(file) {
   }
 }
 
-export default function BrowserCvDetector({ backendOnline, cudaDataLoaded, onSaved, onOpenTacticalMap }) {
+export default function BrowserCvDetector({ backendOnline, cudaDataLoaded, onSaved, onOpenTacticalMap, onDetectionStart }) {
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
@@ -202,6 +202,7 @@ export default function BrowserCvDetector({ backendOnline, cudaDataLoaded, onSav
   };
 
   const setActiveFile = (file, source) => {
+    if (file) onDetectionStart?.();
     const nextFileId = makeFileId(file, source);
     setSelectedFile(file);
     setSelectedFileId(nextFileId);
@@ -317,7 +318,15 @@ export default function BrowserCvDetector({ backendOnline, cudaDataLoaded, onSav
       savedPayloadRef.current = payloadKey;
       setSaveResult(result);
       setSyncMessage('Detection saved and tactical fusion updated.');
-      await onSaved?.();
+      await onSaved?.(
+        (payloadOverride.detections ?? []).map((det) => ({
+          ...det,
+          bbox: det.bbox_xyxy ?? det.bbox,
+          score: det.confidence ?? det.score,
+          frame_width: payloadOverride.frame_width,
+          frame_height: payloadOverride.frame_height,
+        }))
+      );
       return result;
     } catch (err) {
       setError(err.message || 'Could not save browser detections.');

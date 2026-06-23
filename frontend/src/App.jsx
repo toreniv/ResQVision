@@ -341,7 +341,7 @@ function deriveRecommendedActions(targets) {
   return actions;
 }
 
-function TacticalCommand({ riskRanking, attentionStats, fusionMode, manualDronePoints, setExpandedMap }) {
+function TacticalCommand({ riskRanking, attentionStats, fusionMode, manualDronePoints, setExpandedMap, cvDetections = [] }) {
   const [currentTime, setCurrentTime] = useState(() => new Date());
   const liveSoldiers = riskRanking ?? topTargets;
   const criticalCount = liveSoldiers.filter((target) => target.category === 'critical').length;
@@ -349,6 +349,7 @@ function TacticalCommand({ riskRanking, attentionStats, fusionMode, manualDroneP
   const stableCount = Math.max(0, missionBase.soldierCount - criticalCount - urgentCount);
   const visibleTargets = liveSoldiers.slice(0, 5);
   const recommendedActions = deriveRecommendedActions(visibleTargets);
+  const confirmedCvDetections = cvDetections.filter((det) => det?.status === 'confirmed');
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(new Date()), 1000);
@@ -411,7 +412,7 @@ function TacticalCommand({ riskRanking, attentionStats, fusionMode, manualDroneP
               Expand Map
             </button>
           </div>
-          <TacticalMap planning showArrows soldiers={liveSoldiers} attentionData={attentionStats ?? []} fusionMode={fusionMode} manualPoints={manualDronePoints} />
+          <TacticalMap planning showArrows soldiers={liveSoldiers} attentionData={attentionStats ?? []} fusionMode={fusionMode} manualPoints={manualDronePoints} cvDetections={cvDetections} />
         </section>
 
         <aside className="tc-side-panel">
@@ -420,6 +421,26 @@ function TacticalCommand({ riskRanking, attentionStats, fusionMode, manualDroneP
             <h2>Top Evacuation Targets</h2>
           </div>
           <p>Sorted by CUDA-generated risk score.</p>
+
+          {confirmedCvDetections.length ? (
+            <div className="tc-target-list" aria-label="Live CV Detections">
+              <strong style={{ color: '#38bdf8' }}>Live CV Detections</strong>
+              {confirmedCvDetections.map((det, index) => (
+                <article className="tc-target-row" key={det.id ?? `cv-${index}`} style={{ borderColor: '#38bdf8' }}>
+                  <div className="tc-target-rank" style={{ color: '#38bdf8' }}>CV</div>
+                  <div className="tc-target-body">
+                    <div className="tc-target-top">
+                      <strong style={{ color: '#38bdf8' }}>CV Casualty</strong>
+                      <em style={{ color: '#38bdf8' }}>confirmed</em>
+                    </div>
+                    <div className="tc-target-vitals">
+                      <span>CV Casualty - {Math.round(((det.score ?? det.confidence ?? 0) * 100))}% confidence - confirmed</span>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
 
           <div className="tc-target-list">
             {visibleTargets.map((target) => (
@@ -789,7 +810,7 @@ function normalizeManualCoordinate(value, size) {
   return Math.round((value / Math.max(size, 1)) * MAP_SIZE * 10) / 10;
 }
 
-function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTacticalData, cudaDataLoaded, onOpenTacticalMap }) {
+function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTacticalData, cudaDataLoaded, onOpenTacticalMap, onCvDetectionsSaved, onCvDetectionStart }) {
   const videoRef = useRef(null);
   const [detections, setDetections] = useState(CV_MOCK);
   const [detectionSource, setDetectionSource] = useState(null);
@@ -1568,7 +1589,9 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
         backendOnline={backendOnline}
         cudaDataLoaded={cudaDataLoaded}
         onOpenTacticalMap={onOpenTacticalMap}
-        onSaved={async () => {
+        onDetectionStart={onCvDetectionStart}
+        onSaved={async (savedDetections = []) => {
+          onCvDetectionsSaved?.(savedDetections);
           setHumanReviewAvailable(false);
           setHumanReviewWarning(false);
           await refreshDetectionsOnce();
@@ -1985,6 +2008,7 @@ export default function App() {
   const [activePage, setActivePage] = useState('mission');
   const [expandedMap, setExpandedMap] = useState(null);
   const [globalYoloOnline, setGlobalYoloOnline] = useState(false);
+  const [cvDetections, setCvDetections] = useState([]);
   const [manualDronePoints, setManualDronePoints] = useState(() => {
     try {
       const stored = window.localStorage.getItem(MANUAL_POINTS_STORAGE_KEY);
@@ -2043,10 +2067,10 @@ export default function App() {
 
   const page = {
     mission: <MissionPlan riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} fusionMode={cudaData.fusionMode} manualDronePoints={manualDronePoints} setActivePage={setActivePage} setExpandedMap={setExpandedMap} />,
-    command: <TacticalCommand riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} fusionMode={cudaData.fusionMode} manualDronePoints={manualDronePoints} setExpandedMap={setExpandedMap} />,
+    command: <TacticalCommand riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} fusionMode={cudaData.fusionMode} manualDronePoints={manualDronePoints} setExpandedMap={setExpandedMap} cvDetections={cvDetections} />,
     analytics: <Analytics benchmarks={cudaData.benchmarks} attentionStats={cudaData.attentionStats} />,
     architecture: <SystemArchitecture />,
-    cv: <ComputerVision manualDronePoints={manualDronePoints} setManualDronePoints={setManualDronePoints} refreshTacticalData={cudaData.refresh} cudaDataLoaded={cudaDataLoaded} onOpenTacticalMap={() => setActivePage('command')} />
+    cv: <ComputerVision manualDronePoints={manualDronePoints} setManualDronePoints={setManualDronePoints} refreshTacticalData={cudaData.refresh} cudaDataLoaded={cudaDataLoaded} onOpenTacticalMap={() => setActivePage('command')} onCvDetectionsSaved={setCvDetections} onCvDetectionStart={() => setCvDetections([])} />
   }[activePage];
 
   return (
