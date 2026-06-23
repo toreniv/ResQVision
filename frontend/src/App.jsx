@@ -24,6 +24,7 @@ import {
   topTargets
 } from './data.js';
 import { loadAttentionStats, loadBenchmarkResults, loadRiskRanking } from './dataLoader.js';
+import BrowserCvDetector from './components/BrowserCvDetector.jsx';
 import TacticalMap from './components/TacticalMap.jsx';
 import {
   Bar,
@@ -828,6 +829,7 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
   // Keep review mode states for advanced tools
   const [batchMode, setBatchMode] = useState(null);
   const [reviewYoloDetections, setReviewYoloDetections] = useState(0);
+  const [savedSamplesCount, setSavedSamplesCount] = useState(0);
 
   // --- Debug benchmark state ---
   const [detectionMetadata, setDetectionMetadata] = useState(null);
@@ -942,6 +944,7 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
   }, []);
 
   const isOfflineImage = detectionSource === 'offline_image';
+  const isBrowserTransformers = detectionSource === 'browser_transformers';
   const sourceLabel = isOfflineImage ? 'Offline Image Mode' : hasLiveData ? 'Live JSON' : 'Mock data';
   const showRawYoloDebug = new URLSearchParams(window.location.search).get('debug') === '1';
   const primaryPreviewSrc = humanReviewAvailable
@@ -949,8 +952,10 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
     : `/data/detection_preview.jpg?t=${previewVersion}`;
   const primaryDetectionCount = humanReviewAvailable
     ? humanReviewData?.detection_count ?? humanReviewData?.detections?.length ?? 0
-    : 'Not available';
-  const primarySource = humanReviewAvailable ? 'Human-reviewed demo' : detectionSource ?? 'Raw YOLO output';
+    : hasLiveData ? detections.length : 'Not available';
+  const primarySource = humanReviewAvailable
+    ? 'Human-reviewed demo'
+    : isBrowserTransformers ? 'Browser Transformers.js' : detectionSource ?? 'Raw YOLO output';
   const visualSource = selectedImageFile
     ? (manualImageName?.startsWith('camera-uav-frame-') ? 'Camera frame' : 'Uploaded image')
     : humanReviewAvailable ? 'Human-reviewed demo' : hasLiveData ? 'Live JSON' : 'Demo preview';
@@ -1179,6 +1184,7 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
         const nextDetections = Array.isArray(data) ? data : data?.detections;
         setDetections(Array.isArray(nextDetections) ? nextDetections : CV_MOCK);
         setDetectionSource(Array.isArray(data) ? 'legacy_array' : data?.source ?? null);
+        setDetectionMetadata(data?.metadata ?? null);
         setHasLiveData(true);
         setPreviewVersion(Date.now());
         setPreviewAvailable(true);
@@ -1630,6 +1636,17 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
           <em>Review before dashboard use</em>
         </article>
       </section>
+
+      <BrowserCvDetector
+        backendOnline={backendOnline}
+        onSaved={async () => {
+          setHumanReviewAvailable(false);
+          setHumanReviewWarning(false);
+          await refreshDetectionsOnce();
+          refreshTacticalData?.();
+          setServerStatus('Browser Transformers.js detections saved and tactical fusion refreshed.');
+        }}
+      />
 
       <section className="panel cv-input-card">
         <div className="cv-section-heading">

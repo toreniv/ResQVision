@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 from collections import deque
 import json
 from pathlib import Path
@@ -31,6 +33,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TEMP_UPLOAD_DIR = PROJECT_ROOT / "temp_uploads"
 UPLOAD_IMAGE_PATH = TEMP_UPLOAD_DIR / "drone_frame.png"
 MANUAL_MARKERS_PATH = DEFAULT_DATA_DIR / "manual_markers.json"
+DETECTIONS_PATH = DEFAULT_DATA_DIR / "detections.json"
+DETECTION_PREVIEW_PATH = DEFAULT_DATA_DIR / "detection_preview.jpg"
 DATASET_BUILDER_DIR = TEMP_UPLOAD_DIR / "dataset_builder"
 DATASET_BUILDER_IMAGES_DIR = DATASET_BUILDER_DIR / "images"
 DATASET_BUILDER_LABELS_DIR = DATASET_BUILDER_DIR / "labels"
@@ -288,6 +292,63 @@ async def upload_yolo_image(image: UploadFile = File(...)) -> dict[str, Any]:
             "detections": len(result["payload"].get("detections", [])),
             "fusion_mode": fusion.get("fusion_mode", "YOLO_IMAGE"),
             "metadata": result["payload"].get("metadata", {}),
+        }
+    except Exception as exc:
+        return {"ok": False, "message": str(exc)}
+
+
+@app.post("/api/browser-cv/save_detections")
+async def save_browser_cv_detections(payload: dict[str, Any]) -> dict[str, Any]:
+    try:
+        detections = payload.get("detections")
+        if not isinstance(detections, list):
+            return {"ok": False, "message": "payload.detections must be a list"}
+
+        for index, detection in enumerate(detections):
+            if not isinstance(detection, dict):
+                return {"ok": False, "message": f"detections[{index}] must be an object"}
+            missing = [
+                field
+                for field in ("status", "reason", "review_required")
+                if field not in detection
+            ]
+            if missing:
+                return {
+                    "ok": False,
+                    "message": f"detections[{index}] missing required field(s): {', '.join(missing)}",
+                }
+
+        preview_base64 = (
+            payload.pop("preview_base64", None)
+            or payload.pop("preview_image_base64", None)
+            or payload.pop("detection_preview_base64", None)
+        )
+        save_json(DETECTIONS_PATH, payload)
+
+        if isinstance(preview_base64, str) and preview_base64:
+            encoded = preview_base64.split(",", 1)[1] if "," in preview_base64 else preview_base64
+            try:
+                DETECTION_PREVIEW_PATH.parent.mkdir(parents=True, exist_ok=True)
+                DETECTION_PREVIEW_PATH.write_bytes(base64.b64decode(encoded, validate=True))
+            except (binascii.Error, ValueError) as exc:
+                return {"ok": False, "message": f"Invalid preview image base64: {exc}"}
+
+        run_tactical_fusion()
+
+        metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+        confirmed_count = int(metadata.get("confirmed_count", 0))
+        candidate_count = int(metadata.get("candidate_count", 0))
+        rejected_count = int(metadata.get("rejected_count", 0))
+        review_required = bool(metadata.get("review_required", candidate_count > 0))
+
+        return {
+            "ok": True,
+            "source": "browser_transformers",
+            "confirmed_count": confirmed_count,
+            "candidate_count": candidate_count,
+            "rejected_count": rejected_count,
+            "review_required": review_required,
+            "fusion_path": str(FUSION_PATH.relative_to(PROJECT_ROOT)).replace("\\", "/"),
         }
     except Exception as exc:
         return {"ok": False, "message": str(exc)}

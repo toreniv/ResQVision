@@ -31,7 +31,7 @@ def load_json(path: Path, fallback: Any) -> Any:
 
 def write_fusion(fusion_mode: str, targets: list[dict[str, Any]], metadata: dict[str, Any] | None = None) -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-    payload = {"fusion_mode": fusion_mode, "targets": targets}
+    payload = {"fusion_mode": fusion_mode, "fusion_status": fusion_mode, "targets": targets}
     if metadata:
         payload.update(metadata)
     with FUSION_PATH.open("w", encoding="utf-8") as handle:
@@ -74,6 +74,8 @@ def extract_detection_payload(raw: Any) -> tuple[list[dict[str, Any]], int, int,
 
 
 def fusion_mode_from_source(source: str) -> str:
+    if source == "browser_transformers":
+        return "BROWSER_TRANSFORMERS"
     if source == "live_camera":
         return "YOLO_LIVE"
     if source == "offline_image":
@@ -86,8 +88,15 @@ def detection_center(det: dict[str, Any]) -> tuple[float, float] | None:
     if isinstance(center, list) and len(center) >= 2:
         return as_float(center[0]), as_float(center[1])
 
-    bbox = det.get("bbox")
+    bbox = det.get("bbox") or det.get("bbox_xywh")
     if not isinstance(bbox, list) or len(bbox) < 4:
+        bbox_xyxy = det.get("bbox_xyxy")
+        if isinstance(bbox_xyxy, list) and len(bbox_xyxy) >= 4:
+            x1 = as_float(bbox_xyxy[0])
+            y1 = as_float(bbox_xyxy[1])
+            x2 = as_float(bbox_xyxy[2])
+            y2 = as_float(bbox_xyxy[3])
+            return (x1 + x2) / 2, (y1 + y2) / 2
         return None
 
     print(f"[WARN] Detection {det.get('id', '?')} is missing center. Falling back to bbox center.")
@@ -142,7 +151,7 @@ def recommended_action(risk_score: float) -> str:
 
 
 def detection_class(det: dict[str, Any]) -> str:
-    return str(det.get("class") or "").lower()
+    return str(det.get("class") or det.get("class_name") or "").lower()
 
 
 def risk_id(entry: dict[str, Any]) -> str:
@@ -239,7 +248,7 @@ def main() -> int:
     yolo_confirmed_count = 0
     yolo_candidate_count = 0
     yolo_rejected_count = 0
-    yolo_rejected_count = 0
+    source_label = "browser_transformers" if detection_source == "browser_transformers" else "YOLO"
 
     for det in detections:
         if detection_class(det) not in {"person", "soldier", "casualty", "0", ""}:
@@ -270,11 +279,11 @@ def main() -> int:
 
         targets.append({
             "id": str(target_id),
-            "source": "YOLO",
+            "source": "BROWSER_TRANSFORMERS" if detection_source == "browser_transformers" else "YOLO",
             "detection_index": index,
-            "class": det.get("class") or "person",
+            "class": det.get("class") or det.get("class_name") or "person",
             "confidence": confidence,
-            "bbox": det.get("bbox"),
+            "bbox": det.get("bbox") or det.get("bbox_xywh"),
             "image_center": localization["image_center"],
             "x_map": localization["x_map"],
             "y_map": localization["y_map"],
@@ -300,10 +309,13 @@ def main() -> int:
 
     if not targets and not manual_targets:
         metadata = {
+            "confirmed_count": yolo_confirmed_count,
+            "candidate_count": yolo_candidate_count,
+            "rejected_count": yolo_rejected_count,
             "yolo_confirmed_count": yolo_confirmed_count,
             "yolo_candidate_count": yolo_candidate_count,
             "yolo_rejected_count": yolo_rejected_count,
-            "source": "YOLO",
+            "source": source_label,
             "confidence_policy": "confirmed_only_for_tactical_fusion",
         }
         if yolo_candidate_count > 0:
@@ -324,10 +336,13 @@ def main() -> int:
         fusion_mode = f"{fusion_mode}_MANUAL"
 
     metadata = {
+        "confirmed_count": yolo_confirmed_count,
+        "candidate_count": yolo_candidate_count,
+        "rejected_count": yolo_rejected_count,
         "yolo_confirmed_count": yolo_confirmed_count,
         "yolo_candidate_count": yolo_candidate_count,
         "yolo_rejected_count": yolo_rejected_count,
-        "source": "YOLO",
+        "source": source_label,
         "confidence_policy": "confirmed_only_for_tactical_fusion",
         "review_required": False,
     }
