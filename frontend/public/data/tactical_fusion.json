@@ -1,27 +1,28 @@
 {
-  "fusion_mode": "YOLO_IMAGE_MANUAL",
+  "fusion_mode": "BROWSER_TRANSFORMERS",
+  "fusion_status": "BROWSER_TRANSFORMERS",
   "targets": [
     {
       "id": "388",
-      "source": "YOLO",
+      "source": "BROWSER_TRANSFORMERS",
       "detection_index": 0,
       "class": "person",
-      "confidence": 0.67,
+      "confidence": 0.996897,
       "bbox": [
-        805,
-        640,
-        25,
-        42
+        821,
+        358,
+        342,
+        354
       ],
       "image_center": [
-        817.0,
-        661.0
+        992.0,
+        535.0
       ],
-      "x_map": 531.9,
-      "y_map": 645.5,
+      "x_map": 775.0,
+      "y_map": 743.1,
       "map_position": [
-        531.9,
-        645.5
+        775.0,
+        743.1
       ],
       "localization_mode": "visual_relative",
       "localization_label": "GPS-Denied Visual Fix",
@@ -35,25 +36,25 @@
     },
     {
       "id": "282",
-      "source": "YOLO",
+      "source": "BROWSER_TRANSFORMERS",
       "detection_index": 1,
       "class": "person",
-      "confidence": 0.55,
+      "confidence": 0.533286,
       "bbox": [
-        702,
-        762,
-        14,
-        38
+        785,
+        168,
+        56,
+        57
       ],
       "image_center": [
-        709.0,
-        781.0
+        813.0,
+        196.5
       ],
-      "x_map": 461.6,
-      "y_map": 762.7,
+      "x_map": 635.2,
+      "y_map": 272.9,
       "map_position": [
-        461.6,
-        762.7
+        635.2,
+        272.9
       ],
       "localization_mode": "visual_relative",
       "localization_label": "GPS-Denied Visual Fix",
@@ -67,25 +68,25 @@
     },
     {
       "id": "176",
-      "source": "YOLO",
+      "source": "BROWSER_TRANSFORMERS",
       "detection_index": 2,
       "class": "person",
-      "confidence": 0.43,
+      "confidence": 0.98537,
       "bbox": [
-        764,
-        717,
-        18,
-        50
+        768,
+        166,
+        78,
+        139
       ],
       "image_center": [
-        773.0,
-        742.0
+        807.0,
+        235.5
       ],
-      "x_map": 503.3,
-      "y_map": 724.6,
+      "x_map": 630.5,
+      "y_map": 327.1,
       "map_position": [
-        503.3,
-        724.6
+        630.5,
+        327.1
       ],
       "localization_mode": "visual_relative",
       "localization_label": "GPS-Denied Visual Fix",
@@ -99,25 +100,25 @@
     },
     {
       "id": "70",
-      "source": "YOLO",
+      "source": "BROWSER_TRANSFORMERS",
       "detection_index": 3,
       "class": "person",
-      "confidence": 0.41,
+      "confidence": 0.99855,
       "bbox": [
-        756,
-        699,
-        15,
-        33
+        138,
+        311,
+        282,
+        401
       ],
       "image_center": [
-        763.0,
-        715.0
+        279.0,
+        511.5
       ],
-      "x_map": 496.7,
-      "y_map": 698.2,
+      "x_map": 218.0,
+      "y_map": 710.4,
       "map_position": [
-        496.7,
-        698.2
+        218.0,
+        710.4
       ],
       "localization_mode": "visual_relative",
       "localization_label": "GPS-Denied Visual Fix",
@@ -131,25 +132,25 @@
     },
     {
       "id": "17",
-      "source": "YOLO",
+      "source": "BROWSER_TRANSFORMERS",
       "detection_index": 4,
       "class": "person",
-      "confidence": 0.24,
+      "confidence": 0.746058,
       "bbox": [
-        744,
-        720,
-        22,
-        42
+        453,
+        209,
+        54,
+        128
       ],
       "image_center": [
-        755.0,
-        741.0
+        480.0,
+        273.0
       ],
-      "x_map": 491.5,
-      "y_map": 723.6,
+      "x_map": 375.0,
+      "y_map": 379.2,
       "map_position": [
-        491.5,
-        723.6
+        375.0,
+        379.2
       ],
       "localization_mode": "visual_relative",
       "localization_label": "GPS-Denied Visual Fix",
@@ -163,25 +164,25 @@
     },
     {
       "id": "229",
-      "source": "YOLO",
+      "source": "BROWSER_TRANSFORMERS",
       "detection_index": 5,
       "class": "person",
-      "confidence": 0.17,
+      "confidence": 0.649709,
       "bbox": [
-        857,
-        626,
-        24,
-        48
+        688,
+        89,
+        33,
+        67
       ],
       "image_center": [
-        869.0,
-        650.0
+        704.5,
+        122.5
       ],
-      "x_map": 565.8,
-      "y_map": 634.8,
+      "x_map": 550.4,
+      "y_map": 170.1,
       "map_position": [
-        565.8,
-        634.8
+        550.4,
+        170.1
       ],
       "localization_mode": "visual_relative",
       "localization_label": "GPS-Denied Visual Fix",
@@ -195,25 +196,25 @@
     },
     {
       "id": "335",
-      "source": "YOLO",
+      "source": "BROWSER_TRANSFORMERS",
       "detection_index": 6,
       "class": "person",
-      "confidence": 0.16,
+      "confidence": 0.998775,
       "bbox": [
-        865,
-        656,
-        17,
-        50
+        758,
+        197,
+        171,
+        413
       ],
       "image_center": [
-        873.0,
-        681.0
+        843.5,
+        403.5
       ],
-      "x_map": 568.4,
-      "y_map": 665.0,
+      "x_map": 659.0,
+      "y_map": 560.4,
       "map_position": [
-        568.4,
-        665.0
+        659.0,
+        560.4
       ],
       "localization_mode": "visual_relative",
       "localization_label": "GPS-Denied Visual Fix",
@@ -224,462 +225,15 @@
       "recommended_action": "Low priority",
       "priority": 7,
       "rank": 7
-    },
-    {
-      "id": "123",
-      "source": "YOLO",
-      "detection_index": 7,
-      "class": "person",
-      "confidence": 0.14,
-      "bbox": [
-        901,
-        649,
-        19,
-        31
-      ],
-      "image_center": [
-        910.0,
-        664.0
-      ],
-      "x_map": 592.4,
-      "y_map": 648.4,
-      "map_position": [
-        592.4,
-        648.4
-      ],
-      "localization_mode": "visual_relative",
-      "localization_label": "GPS-Denied Visual Fix",
-      "risk_score": 0.5680890000000001,
-      "category": "urgent",
-      "hr": 150.0,
-      "spo2": 80.0,
-      "recommended_action": "Low priority",
-      "priority": 8,
-      "rank": 8
-    },
-    {
-      "id": "28",
-      "source": "YOLO",
-      "detection_index": 8,
-      "class": "person",
-      "confidence": 0.14,
-      "bbox": [
-        976,
-        706,
-        20,
-        42
-      ],
-      "image_center": [
-        986.0,
-        727.0
-      ],
-      "x_map": 641.9,
-      "y_map": 710.0,
-      "map_position": [
-        641.9,
-        710.0
-      ],
-      "localization_mode": "visual_relative",
-      "localization_label": "GPS-Denied Visual Fix",
-      "risk_score": 0.079652,
-      "category": "stable",
-      "hr": 116.386,
-      "spo2": 96.9426,
-      "recommended_action": "Low priority",
-      "priority": 9,
-      "rank": 9
-    },
-    {
-      "id": "267",
-      "source": "YOLO",
-      "detection_index": 9,
-      "class": "person",
-      "confidence": 0.14,
-      "bbox": [
-        943,
-        652,
-        17,
-        30
-      ],
-      "image_center": [
-        951.0,
-        667.0
-      ],
-      "x_map": 619.1,
-      "y_map": 651.4,
-      "map_position": [
-        619.1,
-        651.4
-      ],
-      "localization_mode": "visual_relative",
-      "localization_label": "GPS-Denied Visual Fix",
-      "risk_score": 0.076131,
-      "category": "stable",
-      "hr": 92.3103,
-      "spo2": 93.1827,
-      "recommended_action": "Low priority",
-      "priority": 10,
-      "rank": 10
-    },
-    {
-      "id": "manual_1",
-      "soldier_id": "manual_1",
-      "band_id": "",
-      "source": "MANUAL_TAG",
-      "class": "visual_point",
-      "confidence": 1.0,
-      "label": "Soldier",
-      "status": "",
-      "x_image": 527.0,
-      "y_image": 446.0,
-      "x_norm": 0.4117,
-      "y_norm": 0.6194,
-      "image_center": [
-        527.0,
-        446.0
-      ],
-      "x_map": 411.7,
-      "y_map": 619.4,
-      "map_x": 411.7,
-      "map_y": 619.4,
-      "map_position": [
-        411.7,
-        619.4
-      ],
-      "localization_mode": "manual_visual_relative",
-      "localization_label": "Manual Drone Visual Fix",
-      "telemetry_status": "UNLINKED",
-      "risk_score": null,
-      "category": "stable",
-      "hr": 0,
-      "spo2": 0,
-      "recommended_action": "Assign ResQBand / Soldier ID",
-      "priority": null,
-      "rank": null
-    },
-    {
-      "id": "manual_2",
-      "soldier_id": "manual_2",
-      "band_id": "",
-      "source": "MANUAL_TAG",
-      "class": "visual_point",
-      "confidence": 1.0,
-      "label": "Soldier",
-      "status": "",
-      "x_image": 570.0,
-      "y_image": 424.0,
-      "x_norm": 0.4453,
-      "y_norm": 0.5889,
-      "image_center": [
-        570.0,
-        424.0
-      ],
-      "x_map": 445.3,
-      "y_map": 588.9,
-      "map_x": 445.3,
-      "map_y": 588.9,
-      "map_position": [
-        445.3,
-        588.9
-      ],
-      "localization_mode": "manual_visual_relative",
-      "localization_label": "Manual Drone Visual Fix",
-      "telemetry_status": "UNLINKED",
-      "risk_score": null,
-      "category": "stable",
-      "hr": 0,
-      "spo2": 0,
-      "recommended_action": "Assign ResQBand / Soldier ID",
-      "priority": null,
-      "rank": null
-    },
-    {
-      "id": "manual_3",
-      "soldier_id": "manual_3",
-      "band_id": "",
-      "source": "MANUAL_TAG",
-      "class": "visual_point",
-      "confidence": 1.0,
-      "label": "Soldier",
-      "status": "",
-      "x_image": 632.0,
-      "y_image": 439.0,
-      "x_norm": 0.4938,
-      "y_norm": 0.6097,
-      "image_center": [
-        632.0,
-        439.0
-      ],
-      "x_map": 493.8,
-      "y_map": 609.7,
-      "map_x": 493.8,
-      "map_y": 609.7,
-      "map_position": [
-        493.8,
-        609.7
-      ],
-      "localization_mode": "manual_visual_relative",
-      "localization_label": "Manual Drone Visual Fix",
-      "telemetry_status": "UNLINKED",
-      "risk_score": null,
-      "category": "stable",
-      "hr": 0,
-      "spo2": 0,
-      "recommended_action": "Assign ResQBand / Soldier ID",
-      "priority": null,
-      "rank": null
-    },
-    {
-      "id": "manual_4",
-      "soldier_id": "manual_4",
-      "band_id": "",
-      "source": "MANUAL_TAG",
-      "class": "visual_point",
-      "confidence": 1.0,
-      "label": "Soldier",
-      "status": "",
-      "x_image": 689.0,
-      "y_image": 429.0,
-      "x_norm": 0.5383,
-      "y_norm": 0.5958,
-      "image_center": [
-        689.0,
-        429.0
-      ],
-      "x_map": 538.3,
-      "y_map": 595.8,
-      "map_x": 538.3,
-      "map_y": 595.8,
-      "map_position": [
-        538.3,
-        595.8
-      ],
-      "localization_mode": "manual_visual_relative",
-      "localization_label": "Manual Drone Visual Fix",
-      "telemetry_status": "UNLINKED",
-      "risk_score": null,
-      "category": "stable",
-      "hr": 0,
-      "spo2": 0,
-      "recommended_action": "Assign ResQBand / Soldier ID",
-      "priority": null,
-      "rank": null
-    },
-    {
-      "id": "manual_5",
-      "soldier_id": "manual_5",
-      "band_id": "",
-      "source": "MANUAL_TAG",
-      "class": "visual_point",
-      "confidence": 1.0,
-      "label": "Soldier",
-      "status": "",
-      "x_image": 726.0,
-      "y_image": 458.0,
-      "x_norm": 0.5672,
-      "y_norm": 0.6361,
-      "image_center": [
-        726.0,
-        458.0
-      ],
-      "x_map": 567.2,
-      "y_map": 636.1,
-      "map_x": 567.2,
-      "map_y": 636.1,
-      "map_position": [
-        567.2,
-        636.1
-      ],
-      "localization_mode": "manual_visual_relative",
-      "localization_label": "Manual Drone Visual Fix",
-      "telemetry_status": "UNLINKED",
-      "risk_score": null,
-      "category": "stable",
-      "hr": 0,
-      "spo2": 0,
-      "recommended_action": "Assign ResQBand / Soldier ID",
-      "priority": null,
-      "rank": null
-    },
-    {
-      "id": "manual_6",
-      "soldier_id": "manual_6",
-      "band_id": "",
-      "source": "MANUAL_TAG",
-      "class": "visual_point",
-      "confidence": 1.0,
-      "label": "Soldier",
-      "status": "",
-      "x_image": 778.0,
-      "y_image": 463.0,
-      "x_norm": 0.6078,
-      "y_norm": 0.6431,
-      "image_center": [
-        778.0,
-        463.0
-      ],
-      "x_map": 607.8,
-      "y_map": 643.1,
-      "map_x": 607.8,
-      "map_y": 643.1,
-      "map_position": [
-        607.8,
-        643.1
-      ],
-      "localization_mode": "manual_visual_relative",
-      "localization_label": "Manual Drone Visual Fix",
-      "telemetry_status": "UNLINKED",
-      "risk_score": null,
-      "category": "stable",
-      "hr": 0,
-      "spo2": 0,
-      "recommended_action": "Assign ResQBand / Soldier ID",
-      "priority": null,
-      "rank": null
-    },
-    {
-      "id": "manual_7",
-      "soldier_id": "manual_7",
-      "band_id": "",
-      "source": "MANUAL_TAG",
-      "class": "visual_point",
-      "confidence": 1.0,
-      "label": "Soldier",
-      "status": "",
-      "x_image": 803.0,
-      "y_image": 463.0,
-      "x_norm": 0.6273,
-      "y_norm": 0.6431,
-      "image_center": [
-        803.0,
-        463.0
-      ],
-      "x_map": 627.3,
-      "y_map": 643.1,
-      "map_x": 627.3,
-      "map_y": 643.1,
-      "map_position": [
-        627.3,
-        643.1
-      ],
-      "localization_mode": "manual_visual_relative",
-      "localization_label": "Manual Drone Visual Fix",
-      "telemetry_status": "UNLINKED",
-      "risk_score": null,
-      "category": "stable",
-      "hr": 0,
-      "spo2": 0,
-      "recommended_action": "Assign ResQBand / Soldier ID",
-      "priority": null,
-      "rank": null
-    },
-    {
-      "id": "manual_8",
-      "soldier_id": "manual_8",
-      "band_id": "",
-      "source": "MANUAL_TAG",
-      "class": "visual_point",
-      "confidence": 1.0,
-      "label": "Soldier",
-      "status": "",
-      "x_image": 840.0,
-      "y_image": 501.0,
-      "x_norm": 0.6563,
-      "y_norm": 0.6958,
-      "image_center": [
-        840.0,
-        501.0
-      ],
-      "x_map": 656.3,
-      "y_map": 695.8,
-      "map_x": 656.3,
-      "map_y": 695.8,
-      "map_position": [
-        656.3,
-        695.8
-      ],
-      "localization_mode": "manual_visual_relative",
-      "localization_label": "Manual Drone Visual Fix",
-      "telemetry_status": "UNLINKED",
-      "risk_score": null,
-      "category": "stable",
-      "hr": 0,
-      "spo2": 0,
-      "recommended_action": "Assign ResQBand / Soldier ID",
-      "priority": null,
-      "rank": null
-    },
-    {
-      "id": "manual_9",
-      "soldier_id": "manual_9",
-      "band_id": "",
-      "source": "MANUAL_TAG",
-      "class": "visual_point",
-      "confidence": 1.0,
-      "label": "Soldier",
-      "status": "",
-      "x_image": 962.0,
-      "y_image": 521.0,
-      "x_norm": 0.7516,
-      "y_norm": 0.7236,
-      "image_center": [
-        962.0,
-        521.0
-      ],
-      "x_map": 751.6,
-      "y_map": 723.6,
-      "map_x": 751.6,
-      "map_y": 723.6,
-      "map_position": [
-        751.6,
-        723.6
-      ],
-      "localization_mode": "manual_visual_relative",
-      "localization_label": "Manual Drone Visual Fix",
-      "telemetry_status": "UNLINKED",
-      "risk_score": null,
-      "category": "stable",
-      "hr": 0,
-      "spo2": 0,
-      "recommended_action": "Assign ResQBand / Soldier ID",
-      "priority": null,
-      "rank": null
-    },
-    {
-      "id": "manual_10",
-      "soldier_id": "manual_10",
-      "band_id": "",
-      "source": "MANUAL_TAG",
-      "class": "visual_point",
-      "confidence": 1.0,
-      "label": "Soldier",
-      "status": "",
-      "x_image": 1034.0,
-      "y_image": 451.0,
-      "x_norm": 0.8078,
-      "y_norm": 0.6264,
-      "image_center": [
-        1034.0,
-        451.0
-      ],
-      "x_map": 807.8,
-      "y_map": 626.4,
-      "map_x": 807.8,
-      "map_y": 626.4,
-      "map_position": [
-        807.8,
-        626.4
-      ],
-      "localization_mode": "manual_visual_relative",
-      "localization_label": "Manual Drone Visual Fix",
-      "telemetry_status": "UNLINKED",
-      "risk_score": null,
-      "category": "stable",
-      "hr": 0,
-      "spo2": 0,
-      "recommended_action": "Assign ResQBand / Soldier ID",
-      "priority": null,
-      "rank": null
     }
-  ]
+  ],
+  "confirmed_count": 7,
+  "candidate_count": 0,
+  "rejected_count": 6,
+  "yolo_confirmed_count": 7,
+  "yolo_candidate_count": 0,
+  "yolo_rejected_count": 6,
+  "source": "browser_transformers",
+  "confidence_policy": "confirmed_only_for_tactical_fusion",
+  "review_required": false
 }

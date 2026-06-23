@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { pipeline, env } from '@huggingface/transformers';
 
 env.allowLocalModels = false;
@@ -8,6 +8,7 @@ const CANDIDATE_MIN_CONF = 0.08;
 const DEFAULT_MODEL = 'Xenova/detr-resnet-50';
 const FALLBACK_MODEL = 'Xenova/yolos-tiny';
 const detectorCache = new Map();
+const DEMO_IMAGE_PATH = '/data/human_review_preview.jpg';
 
 function getDetector(modelName, onProgress) {
   if (!detectorCache.has(modelName)) {
@@ -149,10 +150,21 @@ async function loadImage(file) {
   }
 }
 
-export default function BrowserCvDetector({ backendOnline, onSaved }) {
+export default function BrowserCvDetector({ backendOnline, cudaDataLoaded, onSaved, onOpenTacticalMap }) {
   const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const videoRef = useRef(null);
   const imageUrlRef = useRef(null);
+  const processedFileRef = useRef(null);
+  const inFlightRunRef = useRef(null);
+  const savedPayloadRef = useRef(null);
+  const savingPayloadRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedFileId, setSelectedFileId] = useState(null);
+  const [inputSource, setInputSource] = useState('none');
+  const [cameraStream, setCameraStream] = useState(null);
+  const [cameraError, setCameraError] = useState(null);
+  const [engineMode, setEngineMode] = useState('browser');
   const [modelName, setModelName] = useState(DEFAULT_MODEL);
   const [modelStatus, setModelStatus] = useState('Not loaded');
   const [progress, setProgress] = useState('');
@@ -161,31 +173,176 @@ export default function BrowserCvDetector({ backendOnline, onSaved }) {
   const [error, setError] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
 
   const counts = useMemo(() => countsFromPayload(payload), [payload]);
   const reviewRequired = Boolean(payload?.metadata?.review_required);
+  const browserCvStatus = error
+    ? 'Error'
+    : modelStatus === 'Model loaded'
+      ? 'Available'
+      : 'Model not loaded';
+  const saveFuseStatus = backendOnline && payload ? 'Enabled' : 'Disabled';
 
-  const handleFileChange = (event) => {
-    const file = event.target.files?.[0] ?? null;
+  useEffect(() => {
+    if (videoRef.current && cameraStream) {
+      videoRef.current.srcObject = cameraStream;
+    }
+  }, [cameraStream]);
+
+  useEffect(() => {
+    return () => {
+      cameraStream?.getTracks().forEach((track) => track.stop());
+    };
+  }, [cameraStream]);
+
+  const makeFileId = (file, source) => {
+    if (!file) return null;
+    return `${source}:${file.name}:${file.size}:${file.type}:${file.lastModified ?? 0}`;
+  };
+
+  const setActiveFile = (file, source) => {
+    const nextFileId = makeFileId(file, source);
     setSelectedFile(file);
+    setSelectedFileId(nextFileId);
+    setInputSource(file ? source : 'none');
     setPayload(null);
     setSaveResult(null);
     setError(null);
+    setSyncMessage('');
+    setProgress(file ? 'Image loaded. Ready for browser detection.' : '');
     if (canvasRef.current) {
       const ctx = canvasRef.current.getContext('2d');
       ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
     }
   };
 
-  const runDetection = async () => {
-    if (!selectedFile) {
-      setError('Upload a UAV image before running browser detection.');
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0] ?? null;
+    setActiveFile(file, file ? 'upload' : 'none');
+  };
+
+  const startCamera = async () => {
+    setCameraError(null);
+    setError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError('Camera is not available in this browser. Upload an image instead.');
       return;
     }
 
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+        audio: false,
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      setCameraError(err.message || 'Camera permission failed. Upload an image instead.');
+    }
+  };
+
+  const stopCamera = () => {
+    cameraStream?.getTracks().forEach((track) => track.stop());
+    setCameraStream(null);
+  };
+
+  const captureCameraFrame = () => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setCameraError('Camera frame is not ready yet.');
+      return;
+    }
+
+    const captureCanvas = document.createElement('canvas');
+    captureCanvas.width = video.videoWidth;
+    captureCanvas.height = video.videoHeight;
+    const context = captureCanvas.getContext('2d');
+    context.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+    captureCanvas.toBlob((blob) => {
+      if (!blob) {
+        setCameraError('Could not capture camera frame. Upload an image instead.');
+        return;
+      }
+      const file = new File([blob], `camera-uav-frame-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      setActiveFile(file, 'camera');
+      setCameraError(null);
+    }, 'image/jpeg', 0.92);
+  };
+
+  const useDemoImage = async () => {
+    setError(null);
+    setCameraError(null);
+    try {
+      const response = await fetch(DEMO_IMAGE_PATH);
+      if (!response.ok) throw new Error('Demo image is not available.');
+      const blob = await response.blob();
+      const file = new File([blob], 'human-reviewed-demo.jpg', { type: blob.type || 'image/jpeg' });
+      setActiveFile(file, 'demo');
+    } catch (err) {
+      setError(err.message || 'Could not load demo image.');
+    }
+  };
+
+  const saveDetections = async (payloadOverride = payload) => {
+    if (!payloadOverride) {
+      setError('Run browser detection before saving.');
+      return null;
+    }
+
+    const payloadKey = payloadOverride.run_id ?? payloadOverride.timestamp;
+    if (savedPayloadRef.current === payloadKey || savingPayloadRef.current === payloadKey) {
+      return saveResult;
+    }
+
+    savingPayloadRef.current = payloadKey;
+    setIsSaving(true);
+    setError(null);
+    try {
+      const previewImageBase64 = canvasRef.current.toDataURL('image/jpeg', 0.9);
+      const response = await fetch('http://127.0.0.1:8000/api/browser-cv/save_detections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...payloadOverride,
+          preview_base64: previewImageBase64,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) {
+        throw new Error(result.message || 'Could not save browser detections.');
+      }
+      savedPayloadRef.current = payloadKey;
+      setSaveResult(result);
+      setSyncMessage('Detection saved and tactical fusion updated.');
+      await onSaved?.();
+      return result;
+    } catch (err) {
+      setError(err.message || 'Could not save browser detections.');
+      return null;
+    } finally {
+      savingPayloadRef.current = null;
+      setIsSaving(false);
+    }
+  };
+
+  const runDetection = async ({ fileOverride = selectedFile, runId = selectedFileId, autoSave = false } = {}) => {
+    if (!fileOverride) {
+      setError('Upload a UAV image before running browser detection.');
+      return null;
+    }
+
+    if (inFlightRunRef.current === runId) {
+      return null;
+    }
+
+    inFlightRunRef.current = runId;
     setIsRunning(true);
     setSaveResult(null);
     setError(null);
+    setSyncMessage('');
     setModelStatus('Loading model');
     setProgress('');
 
@@ -198,11 +355,11 @@ export default function BrowserCvDetector({ backendOnline, onSaved }) {
       setModelStatus('Model loaded');
       setProgress('Running local browser inference');
 
-      const { image, url } = await loadImage(selectedFile);
+      const { image, url } = await loadImage(fileOverride);
       if (imageUrlRef.current) URL.revokeObjectURL(imageUrlRef.current);
       imageUrlRef.current = url;
 
-      console.log('[BROWSER_CV] selected file:', selectedFile.name, selectedFile.type, selectedFile.size);
+      console.log('[BROWSER_CV] selected file:', fileOverride.name, fileOverride.type, fileOverride.size);
       console.log('[BROWSER_CV] inference input type:', typeof url, url);
 
       const results = await detector(url, {
@@ -249,6 +406,7 @@ export default function BrowserCvDetector({ backendOnline, onSaved }) {
       const rejectedCount = detections.filter((det) => String(det.status).startsWith('rejected')).length;
       const nextPayload = {
         source: 'browser_transformers',
+        run_id: runId,
         timestamp: new Date().toISOString(),
         frame_width: frameWidth,
         frame_height: frameHeight,
@@ -270,42 +428,46 @@ export default function BrowserCvDetector({ backendOnline, onSaved }) {
           ? 'No person detections found.'
           : `Detection complete: ${confirmedCount} confirmed, ${candidateCount} candidate, ${rejectedCount} rejected`
       );
+      if (autoSave) {
+        if (backendOnline) {
+          await saveDetections(nextPayload);
+        } else {
+          setSyncMessage('Detection completed locally. Start backend to save detections and update tactical fusion.');
+        }
+      }
+      return nextPayload;
     } catch (err) {
       setError(err.message || 'Browser detection failed.');
       setModelStatus('Detection failed');
+      return null;
     } finally {
       setIsRunning(false);
+      inFlightRunRef.current = null;
     }
   };
 
-  const saveDetections = async () => {
-    if (!payload) {
-      setError('Run browser detection before saving.');
-      return;
-    }
+  useEffect(() => {
+    if (!selectedFile || !selectedFileId || engineMode !== 'browser') return;
+    if (processedFileRef.current === selectedFileId) return;
+    processedFileRef.current = selectedFileId;
+    runDetection({ fileOverride: selectedFile, runId: selectedFileId, autoSave: true });
+  }, [selectedFile, selectedFileId, engineMode, backendOnline]);
 
-    setIsSaving(true);
+  const resetInput = () => {
+    processedFileRef.current = null;
+    savedPayloadRef.current = null;
+    setSelectedFile(null);
+    setSelectedFileId(null);
+    setInputSource('none');
+    setPayload(null);
+    setSaveResult(null);
     setError(null);
-    try {
-      const previewImageBase64 = canvasRef.current.toDataURL('image/jpeg', 0.9);
-      const response = await fetch('http://127.0.0.1:8000/api/browser-cv/save_detections', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...payload,
-          preview_base64: previewImageBase64,
-        }),
-      });
-      const result = await response.json();
-      if (!response.ok || !result.ok) {
-        throw new Error(result.message || 'Could not save browser detections.');
-      }
-      setSaveResult(result);
-      await onSaved?.();
-    } catch (err) {
-      setError(err.message || 'Could not save browser detections.');
-    } finally {
-      setIsSaving(false);
+    setSyncMessage('');
+    setProgress('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
     }
   };
 
@@ -316,47 +478,88 @@ export default function BrowserCvDetector({ backendOnline, onSaved }) {
       : payload
         ? 'No confirmed browser detections found. Tactical Command uses CUDA risk ranking fallback.'
         : 'Upload an image and run browser-side detection.';
+  const inputLabel = inputSource === 'upload'
+    ? 'Uploaded UAV image'
+    : inputSource === 'camera'
+      ? 'Captured camera frame'
+      : inputSource === 'demo'
+        ? 'Human-reviewed demo image'
+        : 'No image selected';
+  const browserStatusLabel = error ? 'Error' : isRunning ? 'Loading' : 'Ready';
+  const detectedPeople = counts.confirmed + counts.candidate;
 
   return (
     <section className="panel browser-cv-card">
-      <div className="browser-cv-header">
+      <div className="browser-cv-simple-header">
         <div>
           <span>Primary MVP path</span>
           <h2>Browser Transformers.js Detection</h2>
-          <p>Runs object detection locally in the browser, then saves structured detections through the backend for tactical fusion.</p>
+          <p>Select an input. Detection runs automatically in the browser; backend sync runs automatically when available.</p>
         </div>
-        <div className="browser-cv-model">
-          <label>
-            Model
-            <select value={modelName} onChange={(event) => setModelName(event.target.value)} disabled={isRunning}>
-              <option value={DEFAULT_MODEL}>Xenova/detr-resnet-50</option>
-              <option value={FALLBACK_MODEL}>Xenova/yolos-tiny</option>
-            </select>
+      </div>
+
+      <div className="browser-cv-simple-status">
+        <span>Browser CV: <strong>{browserStatusLabel}</strong></span>
+        <span>Backend Sync: <strong>{backendOnline ? 'Online' : 'Offline'}</strong></span>
+        {syncMessage ? <em>{syncMessage}</em> : null}
+      </div>
+
+      <h3 className="browser-cv-section-label">Input Source</h3>
+      <div className="cv-input-source-grid">
+        <article className={inputSource === 'upload' ? 'is-active' : ''}>
+          <h3>Upload UAV Image</h3>
+          <label className="drone-file-control compact">
+            <span>Select Image</span>
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} />
           </label>
-        </div>
+        </article>
+        <article className={inputSource === 'camera' ? 'is-active' : ''}>
+          <h3>Open Camera</h3>
+          <div className="camera-controls">
+            <button type="button" onClick={cameraStream ? stopCamera : startCamera}>
+              {cameraStream ? 'Stop Camera' : 'Open Camera'}
+            </button>
+            <button type="button" onClick={captureCameraFrame} disabled={!cameraStream}>
+              Capture Frame
+            </button>
+          </div>
+          {cameraError ? <small>{cameraError}</small> : null}
+        </article>
+        <article className={inputSource === 'demo' ? 'is-active' : ''}>
+          <h3>Use Demo Image</h3>
+          <button type="button" className="cv-mode-button" onClick={useDemoImage}>
+            Use Demo Image
+          </button>
+        </article>
       </div>
 
-      <div className="browser-cv-controls">
-        <label className="drone-file-control compact">
-          <span>Upload UAV Image</span>
-          <input type="file" accept="image/*" onChange={handleFileChange} />
-        </label>
-        <button type="button" className="cv-run-detection" onClick={runDetection} disabled={!selectedFile || isRunning}>
-          {isRunning ? 'Running Browser Detection...' : 'Run Browser Detection'}
-        </button>
-        <button type="button" className="cv-run-detection" onClick={saveDetections} disabled={!payload || isSaving || !backendOnline}>
-          {isSaving ? 'Saving...' : 'Save and Fuse'}
-        </button>
-        {!backendOnline ? <small>Start the local backend to save detections and update tactical fusion.</small> : null}
-      </div>
+      {cameraStream ? (
+        <video
+          ref={videoRef}
+          className="cv-camera-preview"
+          autoPlay
+          muted
+          playsInline
+        />
+      ) : null}
 
-      <div className="browser-cv-status-grid">
-        <div><span>Model status</span><strong>{modelStatus}</strong></div>
-        <div><span>Progress</span><strong>{progress || 'Idle'}</strong></div>
+      <canvas ref={canvasRef} className="browser-cv-canvas" aria-label="Browser detection preview" />
+
+      <div className="browser-cv-summary">
+        <div><span>Detected</span><strong>{detectedPeople}</strong></div>
         <div><span>Confirmed</span><strong>{counts.confirmed}</strong></div>
         <div><span>Candidates</span><strong>{counts.candidate}</strong></div>
         <div><span>Rejected</span><strong>{counts.rejected}</strong></div>
-        <div><span>Review required</span><strong>{reviewRequired ? 'Yes' : 'No'}</strong></div>
+        <div><span>Review Required</span><strong>{reviewRequired ? 'Yes' : 'No'}</strong></div>
+      </div>
+
+      <div className="browser-cv-simple-actions">
+        <button type="button" className="cv-run-detection" onClick={resetInput}>
+          Run Again
+        </button>
+        <button type="button" className="cv-run-detection" onClick={onOpenTacticalMap}>
+          Open Tactical Map
+        </button>
       </div>
 
       <div className={`browser-cv-message ${counts.confirmed > 0 ? 'is-success' : counts.candidate > 0 ? 'is-warning' : ''}`}>
@@ -372,7 +575,85 @@ export default function BrowserCvDetector({ backendOnline, onSaved }) {
 
       {error ? <div className="cv-backend-error"><strong>Error</strong><small>{error}</small></div> : null}
 
-      <canvas ref={canvasRef} className="browser-cv-canvas" aria-label="Browser detection preview" />
+      <details className="advanced-toggle browser-cv-advanced">
+        <summary>Advanced Details</summary>
+        <div className="advanced-content">
+          <div className="browser-cv-model">
+            <label>
+              Model
+              <select value={modelName} onChange={(event) => setModelName(event.target.value)} disabled={isRunning}>
+                <option value={DEFAULT_MODEL}>Xenova/detr-resnet-50</option>
+                <option value={FALLBACK_MODEL}>Xenova/yolos-tiny</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="cv-capability-status">
+            <article className={backendOnline ? 'is-online' : 'is-offline'}>
+              <span>Backend</span>
+              <strong>{backendOnline ? 'Online' : 'Offline'}</strong>
+            </article>
+            <article className={browserCvStatus === 'Error' ? 'is-offline' : 'is-online'}>
+              <span>Browser CV</span>
+              <strong>{browserCvStatus}</strong>
+            </article>
+            <article className={cudaDataLoaded ? 'is-online' : 'is-offline'}>
+              <span>CUDA Data</span>
+              <strong>{cudaDataLoaded ? 'Loaded' : 'Missing'}</strong>
+            </article>
+            <article className={saveFuseStatus === 'Enabled' ? 'is-online' : 'is-offline'}>
+              <span>Save & Fuse</span>
+              <strong>{saveFuseStatus}</strong>
+            </article>
+          </div>
+
+          <div className="cv-engine-selector">
+            <label className={engineMode === 'browser' ? 'is-selected' : ''}>
+              <input type="radio" name="cv-engine" value="browser" checked={engineMode === 'browser'} onChange={() => setEngineMode('browser')} />
+              <strong>Browser Transformers.js</strong>
+              <span>Recommended</span>
+            </label>
+            <label className={engineMode === 'yolo' ? 'is-selected' : ''}>
+              <input type="radio" name="cv-engine" value="yolo" checked={engineMode === 'yolo'} onChange={() => setEngineMode('yolo')} />
+              <strong>Python YOLO Backend</strong>
+              <span>Optional fallback</span>
+            </label>
+            <label className={engineMode === 'demo' ? 'is-selected' : ''}>
+              <input type="radio" name="cv-engine" value="demo" checked={engineMode === 'demo'} onChange={() => setEngineMode('demo')} />
+              <strong>Human-reviewed Demo</strong>
+              <span>Safe fallback</span>
+            </label>
+          </div>
+
+          <div className="browser-cv-controls">
+            <div className="cv-selected-input">
+              <span>Input source</span>
+              <strong>{inputLabel}</strong>
+            </div>
+            <button type="button" className="cv-run-detection" onClick={() => runDetection({ autoSave: false })} disabled={!selectedFile || isRunning || engineMode !== 'browser'}>
+              {isRunning ? 'Running Browser Detection...' : 'Run Detection'}
+            </button>
+            <button type="button" className="cv-run-detection" onClick={() => saveDetections()} disabled={!payload || isSaving || !backendOnline}>
+              {isSaving ? 'Saving...' : 'Save and Fuse'}
+            </button>
+            {!backendOnline ? <small>Start backend to save detections and update tactical fusion.</small> : null}
+            {engineMode !== 'browser' ? <small>Switch to Browser Transformers.js to run the primary MVP detector.</small> : null}
+          </div>
+
+          <div className="browser-cv-status-grid">
+            <div><span>Model status</span><strong>{modelStatus}</strong></div>
+            <div><span>Progress</span><strong>{progress || 'Idle'}</strong></div>
+            <div><span>Confirmed</span><strong>{counts.confirmed}</strong></div>
+            <div><span>Candidates</span><strong>{counts.candidate}</strong></div>
+            <div><span>Rejected</span><strong>{counts.rejected}</strong></div>
+            <div><span>Review required</span><strong>{reviewRequired ? 'Yes' : 'No'}</strong></div>
+          </div>
+
+          <pre className="browser-cv-json-preview">
+            {payload ? JSON.stringify(payload, null, 2) : 'No detection payload yet.'}
+          </pre>
+        </div>
+      </details>
     </section>
   );
 }

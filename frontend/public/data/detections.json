@@ -1,207 +1,357 @@
 {
-  "source": "offline_image",
-  "timestamp": "2026-06-08T07:53:51.027690Z",
-  "frame_width": 1536,
-  "frame_height": 1024,
+  "source": "browser_transformers",
+  "run_id": "demo:human-reviewed-demo.jpg:346217:image/jpeg:1782214841915",
+  "timestamp": "2026-06-23T11:40:47.010Z",
+  "frame_width": 1280,
+  "frame_height": 720,
   "metadata": {
-    "mode": "drone_demo",
-    "model": "models\\drone_tactical_best.pt",
-    "imgsz": 1920,
-    "conf": 0.1,
-    "classes": null,
-    "retry_used": true,
-    "attempts": [
-      {
-        "model": "models\\drone_tactical_best.pt",
-        "imgsz": 1536,
-        "conf": 0.4,
-        "classes": null,
-        "detections": 0
-      },
-      {
-        "model": "models\\drone_tactical_best.pt",
-        "imgsz": 1536,
-        "conf": 0.4,
-        "classes": null,
-        "detections": 0,
-        "preprocessing": "clahe"
-      },
-      {
-        "model": "models\\drone_tactical_best.pt",
-        "imgsz": 1920,
-        "conf": 0.1,
-        "classes": null,
-        "detections": 12
-      }
-    ],
-    "full_frame_attempt": true,
-    "final_detection_stage": "tiled",
-    "full_frame_time_ms": 2696.56,
-    "sliced_inference_used": true,
-    "tiled_inference_used": true,
-    "tile_size": 640,
-    "overlap": 0.5,
-    "tile_imgsz": 960,
-    "tile_conf": 0.25,
-    "nms_iou_threshold": 0.45,
-    "geometric_filter_applied": true,
-    "clahe_second_pass_used": true,
-    "num_tiles": 12,
-    "detections_before_nms": 30,
-    "detections_after_nms": 2,
-    "tiled_time_ms": 9272.46,
-    "fusion_time_ms": 0.35
+    "model": "Xenova/detr-resnet-50",
+    "confirmed_count": 7,
+    "candidate_count": 0,
+    "rejected_count": 6,
+    "review_required": false,
+    "confirmed_min_conf": 0.3,
+    "candidate_min_conf": 0.08,
+    "confidence_policy": "confirmed_only_for_tactical_fusion"
   },
   "detections": [
     {
-      "id": 1,
-      "class": "person",
-      "confidence": 0.67,
-      "bbox": [
-        805,
-        640,
-        25,
-        42
+      "id": "det_001",
+      "class_name": "person",
+      "confidence": 0.991367,
+      "bbox_xyxy": [
+        599,
+        159,
+        666,
+        400
       ],
-      "center": [
-        817,
-        661
-      ]
+      "bbox_xywh": [
+        599,
+        159,
+        67,
+        241
+      ],
+      "status": "rejected_shadow_candidate",
+      "reason": "outside_plausible_top_down_geometry",
+      "candidate_strength": null,
+      "review_required": false,
+      "source": "browser_transformers",
+      "model": "Xenova/detr-resnet-50",
+      "stage": "browser_inference",
+      "aspect_width_over_height": 0.278,
+      "relative_area": 0.017521
     },
     {
-      "id": 2,
-      "class": "person",
-      "confidence": 0.55,
-      "bbox": [
-        702,
-        762,
-        14,
-        38
+      "id": "det_002",
+      "class_name": "person",
+      "confidence": 0.996897,
+      "bbox_xyxy": [
+        821,
+        358,
+        1163,
+        712
       ],
-      "center": [
-        709,
-        781
-      ]
+      "bbox_xywh": [
+        821,
+        358,
+        342,
+        354
+      ],
+      "status": "confirmed",
+      "reason": "confidence_meets_confirmed_threshold",
+      "candidate_strength": null,
+      "review_required": false,
+      "source": "browser_transformers",
+      "model": "Xenova/detr-resnet-50",
+      "stage": "browser_inference",
+      "aspect_width_over_height": 0.9661,
+      "relative_area": 0.131367
     },
     {
-      "id": 3,
-      "class": "person",
-      "confidence": 0.43,
-      "bbox": [
-        764,
-        717,
-        18,
-        50
+      "id": "det_003",
+      "class_name": "person",
+      "confidence": 0.533286,
+      "bbox_xyxy": [
+        785,
+        168,
+        841,
+        225
       ],
-      "center": [
-        773,
-        742
-      ]
+      "bbox_xywh": [
+        785,
+        168,
+        56,
+        57
+      ],
+      "status": "confirmed",
+      "reason": "confidence_meets_confirmed_threshold",
+      "candidate_strength": null,
+      "review_required": false,
+      "source": "browser_transformers",
+      "model": "Xenova/detr-resnet-50",
+      "stage": "browser_inference",
+      "aspect_width_over_height": 0.9825,
+      "relative_area": 0.003464
     },
     {
-      "id": 4,
-      "class": "person",
-      "confidence": 0.41,
-      "bbox": [
-        756,
+      "id": "det_004",
+      "class_name": "person",
+      "confidence": 0.969729,
+      "bbox_xyxy": [
+        687,
+        130,
+        724,
+        260
+      ],
+      "bbox_xywh": [
+        687,
+        130,
+        37,
+        130
+      ],
+      "status": "rejected_shadow_candidate",
+      "reason": "outside_plausible_top_down_geometry",
+      "candidate_strength": null,
+      "review_required": false,
+      "source": "browser_transformers",
+      "model": "Xenova/detr-resnet-50",
+      "stage": "browser_inference",
+      "aspect_width_over_height": 0.2846,
+      "relative_area": 0.005219
+    },
+    {
+      "id": "det_005",
+      "class_name": "person",
+      "confidence": 0.995991,
+      "bbox_xyxy": [
+        501,
+        178,
+        596,
+        509
+      ],
+      "bbox_xywh": [
+        501,
+        178,
+        95,
+        331
+      ],
+      "status": "rejected_shadow_candidate",
+      "reason": "outside_plausible_top_down_geometry",
+      "candidate_strength": null,
+      "review_required": false,
+      "source": "browser_transformers",
+      "model": "Xenova/detr-resnet-50",
+      "stage": "browser_inference",
+      "aspect_width_over_height": 0.287,
+      "relative_area": 0.03412
+    },
+    {
+      "id": "det_006",
+      "class_name": "person",
+      "confidence": 0.98537,
+      "bbox_xyxy": [
+        768,
+        166,
+        846,
+        305
+      ],
+      "bbox_xywh": [
+        768,
+        166,
+        78,
+        139
+      ],
+      "status": "confirmed",
+      "reason": "confidence_meets_confirmed_threshold",
+      "candidate_strength": null,
+      "review_required": false,
+      "source": "browser_transformers",
+      "model": "Xenova/detr-resnet-50",
+      "stage": "browser_inference",
+      "aspect_width_over_height": 0.5612,
+      "relative_area": 0.011764
+    },
+    {
+      "id": "det_007",
+      "class_name": "person",
+      "confidence": 0.988466,
+      "bbox_xyxy": [
+        647,
+        146,
         699,
-        15,
-        33
+        333
       ],
-      "center": [
-        763,
-        715
-      ]
+      "bbox_xywh": [
+        647,
+        146,
+        52,
+        187
+      ],
+      "status": "rejected_shadow_candidate",
+      "reason": "outside_plausible_top_down_geometry",
+      "candidate_strength": null,
+      "review_required": false,
+      "source": "browser_transformers",
+      "model": "Xenova/detr-resnet-50",
+      "stage": "browser_inference",
+      "aspect_width_over_height": 0.2781,
+      "relative_area": 0.010551
     },
     {
-      "id": 5,
-      "class": "person",
-      "confidence": 0.24,
-      "bbox": [
-        744,
-        720,
-        22,
-        42
+      "id": "det_008",
+      "class_name": "person",
+      "confidence": 0.998671,
+      "bbox_xyxy": [
+        372,
+        211,
+        512,
+        656
       ],
-      "center": [
-        755,
-        741
-      ]
+      "bbox_xywh": [
+        372,
+        211,
+        140,
+        445
+      ],
+      "status": "rejected_shadow_candidate",
+      "reason": "outside_plausible_top_down_geometry",
+      "candidate_strength": null,
+      "review_required": false,
+      "source": "browser_transformers",
+      "model": "Xenova/detr-resnet-50",
+      "stage": "browser_inference",
+      "aspect_width_over_height": 0.3146,
+      "relative_area": 0.0676
     },
     {
-      "id": 6,
-      "class": "person",
-      "confidence": 0.17,
-      "bbox": [
-        857,
-        626,
-        24,
-        48
+      "id": "det_009",
+      "class_name": "person",
+      "confidence": 0.99855,
+      "bbox_xyxy": [
+        138,
+        311,
+        420,
+        712
       ],
-      "center": [
-        869,
-        650
-      ]
+      "bbox_xywh": [
+        138,
+        311,
+        282,
+        401
+      ],
+      "status": "confirmed",
+      "reason": "confidence_meets_confirmed_threshold",
+      "candidate_strength": null,
+      "review_required": false,
+      "source": "browser_transformers",
+      "model": "Xenova/detr-resnet-50",
+      "stage": "browser_inference",
+      "aspect_width_over_height": 0.7032,
+      "relative_area": 0.122702
     },
     {
-      "id": 7,
-      "class": "person",
-      "confidence": 0.16,
-      "bbox": [
-        865,
-        656,
-        17,
-        50
+      "id": "det_010",
+      "class_name": "person",
+      "confidence": 0.746058,
+      "bbox_xyxy": [
+        453,
+        209,
+        507,
+        337
       ],
-      "center": [
-        873,
-        681
-      ]
+      "bbox_xywh": [
+        453,
+        209,
+        54,
+        128
+      ],
+      "status": "confirmed",
+      "reason": "confidence_meets_confirmed_threshold",
+      "candidate_strength": null,
+      "review_required": false,
+      "source": "browser_transformers",
+      "model": "Xenova/detr-resnet-50",
+      "stage": "browser_inference",
+      "aspect_width_over_height": 0.4219,
+      "relative_area": 0.0075
     },
     {
-      "id": 8,
-      "class": "person",
-      "confidence": 0.14,
-      "bbox": [
-        901,
-        649,
-        19,
-        31
+      "id": "det_011",
+      "class_name": "person",
+      "confidence": 0.649709,
+      "bbox_xyxy": [
+        688,
+        89,
+        721,
+        156
       ],
-      "center": [
-        910,
-        664
-      ]
+      "bbox_xywh": [
+        688,
+        89,
+        33,
+        67
+      ],
+      "status": "confirmed",
+      "reason": "confidence_meets_confirmed_threshold",
+      "candidate_strength": null,
+      "review_required": false,
+      "source": "browser_transformers",
+      "model": "Xenova/detr-resnet-50",
+      "stage": "browser_inference",
+      "aspect_width_over_height": 0.4925,
+      "relative_area": 0.002399
     },
     {
-      "id": 9,
-      "class": "person",
-      "confidence": 0.14,
-      "bbox": [
-        976,
-        706,
-        20,
-        42
+      "id": "det_012",
+      "class_name": "person",
+      "confidence": 0.996282,
+      "bbox_xyxy": [
+        721,
+        151,
+        779,
+        307
       ],
-      "center": [
-        986,
-        727
-      ]
+      "bbox_xywh": [
+        721,
+        151,
+        58,
+        156
+      ],
+      "status": "rejected_shadow_candidate",
+      "reason": "outside_plausible_top_down_geometry",
+      "candidate_strength": null,
+      "review_required": false,
+      "source": "browser_transformers",
+      "model": "Xenova/detr-resnet-50",
+      "stage": "browser_inference",
+      "aspect_width_over_height": 0.3718,
+      "relative_area": 0.009818
     },
     {
-      "id": 10,
-      "class": "person",
-      "confidence": 0.14,
-      "bbox": [
-        943,
-        652,
-        17,
-        30
+      "id": "det_013",
+      "class_name": "person",
+      "confidence": 0.998775,
+      "bbox_xyxy": [
+        758,
+        197,
+        929,
+        610
       ],
-      "center": [
-        951,
-        667
-      ]
+      "bbox_xywh": [
+        758,
+        197,
+        171,
+        413
+      ],
+      "status": "confirmed",
+      "reason": "confidence_meets_confirmed_threshold",
+      "candidate_strength": null,
+      "review_required": false,
+      "source": "browser_transformers",
+      "model": "Xenova/detr-resnet-50",
+      "stage": "browser_inference",
+      "aspect_width_over_height": 0.414,
+      "relative_area": 0.076631
     }
   ]
 }

@@ -789,7 +789,7 @@ function normalizeManualCoordinate(value, size) {
   return Math.round((value / Math.max(size, 1)) * MAP_SIZE * 10) / 10;
 }
 
-function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTacticalData }) {
+function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTacticalData, cudaDataLoaded, onOpenTacticalMap }) {
   const videoRef = useRef(null);
   const [detections, setDetections] = useState(CV_MOCK);
   const [detectionSource, setDetectionSource] = useState(null);
@@ -956,14 +956,6 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
   const primarySource = humanReviewAvailable
     ? 'Human-reviewed demo'
     : isBrowserTransformers ? 'Browser Transformers.js' : detectionSource ?? 'Raw YOLO output';
-  const visualSource = selectedImageFile
-    ? (manualImageName?.startsWith('camera-uav-frame-') ? 'Camera frame' : 'Uploaded image')
-    : humanReviewAvailable ? 'Human-reviewed demo' : hasLiveData ? 'Live JSON' : 'Demo preview';
-  const outputMode = backendOnline
-    ? selectedImageFile ? 'YOLO inference ready' : 'Demo preview'
-    : manualDronePoints.length ? 'Manual review' : 'Demo preview';
-  const currentMode = backendOnline && selectedImageFile ? 'Live YOLO Detection' : 'Demo Preview';
-
   useEffect(() => {
     let cancelled = false;
     const checkBackend = () => {
@@ -1565,80 +1557,17 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
     <section className="cv-page">
       <PageHeader
         eyebrow="Computer vision"
-        title="UAV Visual Simulation"
-        description="Simulate a drone-style visual input using either image upload, browser camera, or human-reviewed demo preview."
+        title="Computer Vision MVP"
+        description="Run local browser-first visual detection, then save confirmed detections into tactical fusion when the backend is available."
       />
-      <PageExplainer tags={['Demo / Simulated', 'Optional Backend Required']}>
-        Demo Preview uses a human-reviewed image. Live YOLO requires <code>python scripts/yolo_server.py</code>. CUDA benchmark data is separate and already loaded from JSON.
+      <PageExplainer tags={['Browser CV Primary', 'CUDA Separate', 'Backend Saves Only']}>
+        Browser Transformers.js is the primary MVP path. CUDA analytics are separate benchmark data, and the backend is only required for saving detections and refreshing Tactical Command.
       </PageExplainer>
-
-      <section className={`panel cv-mode-explainer ${backendOnline ? 'is-online' : 'is-offline'}`}>
-        <h2>Current mode: {currentMode}</h2>
-        {backendOnline ? (
-          <p>YOLO backend is online. Upload an image or capture a camera frame, then run detection to generate live YOLO output.</p>
-        ) : (
-          <p>YOLO backend is offline, so this page shows a stable human-reviewed preview. This is not live YOLO output. For the full automated demo, run <code>powershell -ExecutionPolicy Bypass -File .\scripts\start_resqvision_demo.ps1 -StartYolo</code>, refresh the page, then upload an image or capture a camera frame.</p>
-        )}
-      </section>
-
-      <section className={`cv-status-banner ${backendOnline ? 'is-online' : 'is-offline'}`}>
-        <div>
-          <span>Current mode</span>
-          <strong>{backendOnline && selectedImageFile ? 'Live YOLO Detection' : 'Demo Preview'}</strong>
-        </div>
-        <div>
-          <span>YOLO Backend</span>
-          <strong>{backendOnline ? 'Online' : 'Offline'}</strong>
-        </div>
-        <div>
-          <span>Detection</span>
-          <strong>{backendOnline && selectedImageFile ? 'YOLO inference ready' : 'Human-reviewed fallback'}</strong>
-        </div>
-        <div>
-          <span>Output</span>
-          <strong>{backendOnline && selectedImageFile ? outputMode : 'Visual demo overlay'}</strong>
-        </div>
-      </section>
-
-      <section className="panel cv-workflow-card">
-        <div>
-          <strong>Demo mode</strong>
-          <span>Human-reviewed image</span>
-          <i>visual overlay</i>
-          <span>dashboard preview</span>
-        </div>
-        <div>
-          <strong>Live detection mode</strong>
-          <span>Upload/camera</span>
-          <i>YOLO backend</i>
-          <span>detections.json / tactical_fusion.json</span>
-          <i>dashboard overlay</i>
-        </div>
-      </section>
-
-      <section className="panel cv-steps-card">
-        <article>
-          <i>1</i>
-          <strong>Select Visual Input</strong>
-          <p>Choose demo preview, upload image, or browser camera.</p>
-          <em>Current: {visualSource}</em>
-        </article>
-        <article>
-          <i>2</i>
-          <strong>Run Detection</strong>
-          <p>{backendOnline ? 'Run YOLO inference on uploaded or captured input.' : 'Backend is offline, so use the human-reviewed demo preview.'}</p>
-          <em>{backendOnline ? 'Action: Run Detection' : 'Fallback active'}</em>
-        </article>
-        <article>
-          <i>3</i>
-          <strong>Review and Send</strong>
-          <p>Use detections for visual overlay and Tactical Command map markers.</p>
-          <em>Review before dashboard use</em>
-        </article>
-      </section>
 
       <BrowserCvDetector
         backendOnline={backendOnline}
+        cudaDataLoaded={cudaDataLoaded}
+        onOpenTacticalMap={onOpenTacticalMap}
         onSaved={async () => {
           setHumanReviewAvailable(false);
           setHumanReviewWarning(false);
@@ -1647,142 +1576,6 @@ function ComputerVision({ manualDronePoints, setManualDronePoints, refreshTactic
           setServerStatus('Browser Transformers.js detections saved and tactical fusion refreshed.');
         }}
       />
-
-      <section className="panel cv-input-card">
-        <div className="cv-section-heading">
-          <h2>Visual Input Source</h2>
-          <p>Select the source for the UAV-style visual layer before reviewing the current result.</p>
-        </div>
-        <div className={`cv-input-option cv-demo-option ${!selectedImageFile ? 'is-active' : ''}`}>
-          <Eye size={20} />
-          <div>
-            <h3>Human-reviewed demo</h3>
-            <p>Always available. Uses reviewed annotations. Recommended for stable demo.</p>
-          </div>
-          <button type="button" className="cv-mode-button" onClick={() => {
-            setSelectedImageFile(null);
-            setManualImageName(null);
-            setManualImageUrl((currentUrl) => {
-              if (currentUrl) URL.revokeObjectURL(currentUrl);
-              return null;
-            });
-            setServerStatus('Human-reviewed demo preview is active.');
-          }}>
-            {!selectedImageFile ? 'Currently Active' : 'Use Demo Preview'}
-          </button>
-        </div>
-        <div className="cv-input-option">
-          <Upload size={20} />
-          <div>
-            <h3>Upload UAV-style Image</h3>
-            <p>Requires YOLO backend. Upload image and run YOLO inference through the local Python backend.</p>
-          </div>
-          <label className="drone-file-control compact">
-            <span>Select Image</span>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleManualImageChange}
-            />
-          </label>
-          <button
-            type="button"
-            className="cv-run-detection"
-            onClick={runYoloOnUploadedImage}
-            disabled={!backendOnline || !selectedImageFile || isRunningYolo}
-          >
-            {isRunningYolo ? 'Running Detection...' : 'Run Detection'}
-          </button>
-          {!backendOnline ? <small>Start scripts/yolo_server.py to enable detection.</small> : null}
-        </div>
-        <div className="cv-input-option">
-          <Camera size={20} />
-          <div>
-            <h3>Browser Camera Simulation</h3>
-            <p>Camera preview/capture is browser-side. YOLO inference requires backend.</p>
-          </div>
-          <div className="camera-controls">
-            <button type="button" onClick={cameraStream ? stopCameraInput : startCameraInput}>
-              {cameraStream ? 'Stop Camera' : 'Start Camera'}
-            </button>
-            <button type="button" onClick={captureCameraFrame} disabled={!cameraStream}>
-              Capture Frame
-            </button>
-          </div>
-          {!backendOnline ? <small>Capture can simulate input, but detection requires YOLO backend.</small> : null}
-        </div>
-        {cameraStream ? (
-          <video ref={videoRef} className="cv-camera-preview" autoPlay muted playsInline />
-        ) : null}
-        {cameraError ? <div className="cv-yolo-empty">{cameraError}</div> : null}
-      </section>
-
-      <section className="panel cv-human-review-card">
-        <div className="cv-human-review-header">
-          <div>
-            <h2>Current Visual Result</h2>
-            <p>{backendOnline && selectedImageFile ? 'Uploaded or captured visual input ready for YOLO inference.' : 'This preview is human-reviewed and is shown because live YOLO inference is currently unavailable. This is not live YOLO output. It is a human-reviewed demo preview shown while the YOLO backend is offline.'}</p>
-          </div>
-          <dl className="cv-human-review-summary readable-summary">
-            <div><dt>Source</dt><dd>{primarySource}</dd></div>
-            <div><dt>Detections</dt><dd>{primaryDetectionCount}</dd></div>
-            <div><dt>Review status</dt><dd>{humanReviewAvailable ? 'Human reviewed' : 'Fallback preview'}</dd></div>
-            <div><dt>Used for</dt><dd>Demo visualization</dd></div>
-          </dl>
-        </div>
-
-        {humanReviewWarning ? (
-          <div className="cv-human-review-warning">
-            Human-reviewed demo output not found. Showing raw detection output.
-          </div>
-        ) : null}
-
-        {previewAvailable || humanReviewAvailable ? (
-          <img
-            src={primaryPreviewSrc}
-            alt={humanReviewAvailable ? 'Human-reviewed tactical annotation preview' : 'Raw YOLO detection preview'}
-            className="cv-human-review-image"
-            onError={() => {
-              if (humanReviewAvailable) {
-                setHumanReviewAvailable(false);
-                setHumanReviewWarning(true);
-                setPreviewVersion(Date.now());
-              } else {
-                setPreviewAvailable(false);
-              }
-            }}
-          />
-        ) : (
-          <div className="cv-image-placeholder">
-            <div>
-              <p>No computer vision preview found</p>
-              <small>Generate <code>human_review_preview.jpg</code> or run YOLO to create <code>detection_preview.jpg</code>.</small>
-            </div>
-          </div>
-        )}
-      </section>
-
-      <section className={`cv-backend-guidance ${backendOnline ? 'is-online' : ''}`}>
-        <div>
-          <strong>{backendOnline ? 'YOLO Backend Online' : 'YOLO Backend Not Running - Demo Fallback Active'}</strong>
-          {backendOnline ? (
-            <p>YOLO inference can run against the local server. Upload or capture a frame, then run detection.</p>
-          ) : (
-            <>
-              <p>YOLO backend is offline. For the full automated demo, run:</p>
-              <p><code>powershell -ExecutionPolicy Bypass -File .\scripts\start_resqvision_demo.ps1 -StartYolo</code></p>
-              <p>Manual local YOLO option:</p>
-              <ol>
-                <li>Make sure your Python environment is active.</li>
-                <li>Run: <code>python scripts/yolo_server.py</code></li>
-                <li>Refresh this page.</li>
-                <li>Upload an image or capture a frame.</li>
-              </ol>
-              <p>The page will continue using the human-reviewed fallback preview.</p>
-            </>
-          )}
-        </div>
-      </section>
 
       <div className="cv-pipeline-layout">
         <details className="panel pipeline-panel cv-training-details" open={trainingToolsOpen} onToggle={(event) => setTrainingToolsOpen(event.currentTarget.open)}>
@@ -2225,8 +2018,8 @@ export default function App() {
 
   const globalBannerText = cudaDataLoaded
     ? globalYoloOnline
-      ? 'Verified CUDA benchmark data loaded · YOLO backend online · live visual detection enabled'
-      : 'Verified CUDA benchmark data loaded from Colab export · YOLO backend offline · visual demo fallback active'
+      ? 'Verified CUDA benchmark data loaded - backend online - Save and Fuse enabled'
+      : 'Verified CUDA benchmark data loaded - Browser CV available - backend needed only for Save and Fuse'
     : 'CUDA benchmark data missing · run start_resqvision_demo.ps1 or import Colab outputs';
 
   useEffect(() => {
@@ -2253,7 +2046,7 @@ export default function App() {
     command: <TacticalCommand riskRanking={cudaData.riskRanking} attentionStats={cudaData.attentionStats} fusionMode={cudaData.fusionMode} manualDronePoints={manualDronePoints} setExpandedMap={setExpandedMap} />,
     analytics: <Analytics benchmarks={cudaData.benchmarks} attentionStats={cudaData.attentionStats} />,
     architecture: <SystemArchitecture />,
-    cv: <ComputerVision manualDronePoints={manualDronePoints} setManualDronePoints={setManualDronePoints} refreshTacticalData={cudaData.refresh} />
+    cv: <ComputerVision manualDronePoints={manualDronePoints} setManualDronePoints={setManualDronePoints} refreshTacticalData={cudaData.refresh} cudaDataLoaded={cudaDataLoaded} onOpenTacticalMap={() => setActivePage('command')} />
   }[activePage];
 
   return (
